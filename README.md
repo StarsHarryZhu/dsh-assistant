@@ -76,13 +76,6 @@ npm test
 
 `lib/` is a committed build artifact; run `node build.js` after changing `src/`.
 
-## Acknowledgements
-
-- [dsh-superagent-prototype](https://github.com/deepseek-ai/dsh-superagent-prototype) (MIT) and DeepSeek's Super-agent article: the two-layer design, conversation norms, and report format.
-- WeChat protocol: [`@tencent-weixin/openclaw-weixin`](https://www.npmjs.com/package/@tencent-weixin/openclaw-weixin) 2.4.10 (MIT) and [`dsh-weixin-ilink`](https://www.npmjs.com/package/dsh-weixin-ilink) 0.9.1 (MIT); no code from the Apache-2.0 `dsh-im-connect`.
-- QR code: [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) 2.0.4 (MIT).
-- Sub-plugin layout inspired by dsh-mnemon.
-
 ## License
 
 MIT. See [LICENSE](LICENSE). Copyright (c) 2026 Starfield.

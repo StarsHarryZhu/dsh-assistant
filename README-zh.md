@@ -76,13 +76,6 @@ npm test
 
 `lib/` 是构建产物，要提交；改 `src/` 后运行 `node build.js`。
 
-## 致谢
-
-- [dsh-superagent-prototype](https://github.com/deepseek-ai/dsh-superagent-prototype)（MIT）和 DeepSeek 的 Super-agent 文章：双层结构、对话规范和汇报格式的参考。
-- 微信协议：[`@tencent-weixin/openclaw-weixin`](https://www.npmjs.com/package/@tencent-weixin/openclaw-weixin) 2.4.10（MIT）和 [`dsh-weixin-ilink`](https://www.npmjs.com/package/dsh-weixin-ilink) 0.9.1（MIT）；没有使用 Apache-2.0 的 `dsh-im-connect` 的代码。
-- 二维码：[qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) 2.0.4（MIT）。
-- 子插件的组织方式参考 dsh-mnemon。
-
 ## 许可证
 
 MIT，全文见 [LICENSE](LICENSE)。Copyright (c) 2026 Starfield。
