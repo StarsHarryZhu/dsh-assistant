@@ -106,11 +106,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/StarsHarryZhu/dsh-assisstant.git"
+    "url": "git+https://github.com/StarsHarryZhu/dsh-assistant.git"
   },
-  "homepage": "https://github.com/StarsHarryZhu/dsh-assisstant#readme",
+  "homepage": "https://github.com/StarsHarryZhu/dsh-assistant#readme",
   "bugs": {
-    "url": "https://github.com/StarsHarryZhu/dsh-assisstant/issues"
+    "url": "https://github.com/StarsHarryZhu/dsh-assistant/issues"
   },
   "license": "MIT"
 }

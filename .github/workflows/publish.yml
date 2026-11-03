@@ -4,7 +4,7 @@
 # once per package at https://www.npmjs.com/package/@starsharryzhu/dsh-assistant/access
 # -> Trusted Publisher -> GitHub Actions:
 #   organization/user: StarsHarryZhu
-#   repository:        dsh-assisstant
+#   repository:        dsh-assistant
 #   workflow filename: publish.yml
 #   environment:       (leave empty)
 # The npm CLI exchanges GitHub's OIDC token for a short-lived publish token, and
