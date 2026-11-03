@@ -1,80 +1,88 @@
-# 助理（@starsharryzhu/dsh-assistant）
+# dsh-assistant
 
-DeepSeek Harness 插件：一个能一直聊下去的助理。每个助理有自己的工作区、设置和一段持续对话；复杂的活交给后台小帮手，你只需要说话。
+English | [中文](README-zh.md)
 
-## 安装
+A general-purpose chat agent for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), built on a **parent agent + worker sub-agent** architecture.
 
-在 DSH 桌面端或网页版的插件页安装 `@starsharryzhu/dsh-assistant`，或者在命令行：
+The parent is the conversation: it plans, delegates, and approves. Workers do the work in the background. The design explores a more autonomous agent pattern, where the parent manages worker context, model and reasoning effort, workspace, and permission approval instead of the user operating every tool. Single-window self-management of the parent — its own context, model, and long-running work in one conversation — will be added progressively in later versions.
+
+## Install
+
+Install `@starsharryzhu/dsh-assistant` from the Plugins page of DSH Desktop or the web app, or from the command line:
 
 ```bash
 dsh plugin --profile <profile> add @starsharryzhu/dsh-assistant
 ```
 
-两个子插件 `@starsharryzhu/complete-subagent` 和 `@starsharryzhu/im-robot` 会作为依赖一起装好。
+The two sub-plugins `@starsharryzhu/complete-subagent` and `@starsharryzhu/im-robot` are installed with it.
 
-## 功能
+## Architecture
 
-- 左侧栏的「助理」直接进入上次的对话；对话标题是菜单，用来切换或新建助理。新建只要名字、称呼（可选）和工作区。
-- 每个助理各有一个工作区、一份设置、一段不会断的对话；模型和推理强度在输入框或 IM 标签里选，各记各的。
-- 上下文用到设定比例（默认 50%）就自动整理，不用开新对话。
-- 默认只能改自己的工作区；权限可选只读、工作区写入（默认）、完全访问，在 IM 标签里改。
-- 余额低于阈值（默认 10 元）时在回复末尾提醒，话术可改。
-- 人设会按明确证据自我修正，有冷却期和长度上限，可以回滚；画像记录助理该一直记得的事。
-- 日程、提醒、每日简报、看门狗、`/ddl` 周视图。
-- 记录都是工作区里的普通文件：日程 `ddl.md`、清单 `lists/`、备忘 `memo.md`、流水 `logs/`、画像 `profile.md`、人设 `persona.md`、项目 `projects/`。不记密码、银行卡号和证件号。
-- 微信：在 IM 标签里扫码绑定，之后微信和网页进同一段对话；回复是纯文字，按句子切成每条不超过 100 字（可改）。
-- 工具双向隔离：助理的工具不会出现在普通会话，普通会话和其他插件的工具也进不了助理。
+Two hidden agent presets, one visible conversation:
 
-## 怎么工作的
+- **Parent (router)** — the chat. It talks to you, records simple facts with narrow tools over fixed files, and hands everything else to a worker with `delegate`. It has no general file writes, shell, web, or official subagent tool, so it never blocks on work and can take your next message at any time.
+- **Workers** — background sub-agents on their own preset, with the working toolset. Each gets a `cwd` and may modify only that sub-workspace (plus temporary directories); anything else needs `request_write_access`, which the parent answers.
+- **Parent as manager** — it chooses the worker's model and reasoning effort from the models you enable, passes your request in your own words, never polls for progress, and reports only results, decisions, or failures. Worker context stays out of the conversation; the parent's own context is compacted automatically at a configurable ratio (50% by default).
+- **Permissions** — workspace write by default, with automatic refusal outside. The parent auto-approves in-workspace work that matches the task; a destructive or ambiguous change gets one plain-language question, never a modal. Each assistant can be set to read-only, workspace write, or full access.
+- **Isolation** — the parent's record tools exist only inside the two hidden presets, and other plugins' global tools never enter them. This package's tools never appear in normal sessions.
 
-对话分两层，各是一个隐藏的 agent preset（新建会话时看不到）：
+## What you get
 
-- **对话层（router）**：聊天、派活、审批权限，顺便记下简单信息。除了只能碰固定文件的记录工具，它没有写文件、命令行和联网工具，所以不会因为干活而卡住。
-- **执行层（worker）**：查资料、做规划、写文档这些活交给子插件 complete-subagent 派出的小帮手，只能改分给它的文件夹；要改别处就向对话层申请，对话层自动审，拿不准时用一句白话问你，不弹问答框。
-- **少打扰**：开始干活只说一句要做什么，之后只在有结果、有只能你做的决定、或事情做不成时开口；不汇报过程，一次只问一个问题。
-- **外部内容只当资料**：网页、搜索结果、文件、转发的消息里写的「指令」不执行，也不能用来放行权限、删除、发送或花钱。
+- A sidebar row that opens the last assistant's conversation; the conversation title switches between assistants or creates one (name, form of address, workspace).
+- One long-running conversation per assistant, with automatic compaction.
+- Model and reasoning effort per conversation, and a multi-select list of worker models.
+- Records as plain files in the workspace: schedule (`ddl.md`), lists, memos, logs, profile, persona, projects. Passwords, card numbers, and ID numbers are never recorded.
+- Schedule, reminders, a daily brief, a watchdog, and a `/ddl` week view.
+- A balance reminder for the DeepSeek account, with configurable wording.
+- WeChat through `im-robot`: scan to bind, then chat from WeChat in the same conversation. Text only, split into short messages.
+- Tool isolation in both directions.
 
-## 设置
+## Settings
 
-分两处，保存后立即生效。数字可以删空重写，离开输入框时自动修正。
+- **Plugins page** (shared by every assistant): worker models, compaction ratio, balance threshold and check interval, reminder wording, persona and profile limits.
+- **Each assistant's Settings tab**: name and form of address, reminder lead time, daily brief time, watchdog timeout, WeChat switch and message length.
 
-- **插件页**（所有助理共用）：worker 模型（可多选）、自动整理比例、余额阈值/查询间隔/提醒话术、人设开关/冷却期/长度上限。
-- **每个助理的「设置」标签**：名字和称呼、日程提醒提前量、每日提醒时间、看门狗时限、微信开关和单条长度。
+Numbers can be cleared and retyped; values are corrected when the field is left.
 
-## 子插件
+## Sub-plugins
 
-子插件是独立的 npm 包，写死版本放在 `dependencies` 里，只在助理的两个隐藏 preset 里生效：
+Pinned as exact versions in `dependencies` and mounted only inside the two hidden presets:
 
-- `@starsharryzhu/complete-subagent`：后台小帮手和写权限申请。
-- `@starsharryzhu/im-robot`：微信接入。
+- `@starsharryzhu/complete-subagent` — the delegation tools, worker model choice, and write-access requests.
+- `@starsharryzhu/im-robot` — the WeChat bridge.
 
-如果另外单独装了其中一个，本插件自带的那份会自动关掉。
+Installing either one standalone switches the bundled copy off automatically.
 
-## 已知限制
+## Status and roadmap
 
-- 助理对话用的是 DSH 自己的对话界面，其他修改该界面的插件也会影响它。
-- 助理对话仍会出现在普通会话列表的「未分组」里，从那里点开也是同一段对话。
-- 只隔离工具，其他插件注入的全局提示词上下文没有过滤。
-- 微信只收发文字；页面上暂时不能发图片和文件。
-- 助理和小帮手改不了工作区外的文件；在 0.2.1-rc.5 上，批准的路径只能用写文件工具改。
-- 需要 DSH 0.2.1-rc.5 或更新；在 macOS 上验证过 0.2.2-alpha.2 和 0.2.1-rc.5 的宿主，桌面版应用本身还要再实测。
+Working today: the parent/worker split, per-worker model and reasoning effort, workspace confinement with parent-approved access, automatic compaction, records, schedule and reminders, WeChat, and the watchdog.
 
-## 开发
+Next: single-window self-management for the parent agent — its own context, model choice, and long-running work handled in the same conversation, with fewer handoffs and less supervision.
+
+## Known limits
+
+- Assistant conversations still appear under "Ungrouped" in the host's session list.
+- Only tools are isolated; global prompt contexts injected by other plugins are not filtered.
+- WeChat is text only; images and files are not supported yet.
+- Workers cannot modify anything outside their workspace; on DSH 0.2.1-rc.5 an approved path only reaches the write/edit tools, not shell commands.
+- Requires DSH 0.2.1-rc.5 or newer. Verified on macOS against the 0.2.2-alpha.2 and 0.2.1-rc.5 hosts, not yet the Desktop app end to end.
+
+## Development
 
 ```bash
 node scripts/link-dev.mjs
 npm test
 ```
 
-`lib/` 是构建产物，要提交；改 `src/` 后运行 `node build.js`。
+`lib/` is a committed build artifact; run `node build.js` after changing `src/`.
 
-## 致谢
+## Acknowledgements
 
-- [dsh-superagent-prototype](https://github.com/deepseek-ai/dsh-superagent-prototype)（MIT）和 DeepSeek 的 Super-agent 文章：双层结构、对话规范和汇报格式的参考。
-- 微信协议：[`@tencent-weixin/openclaw-weixin`](https://www.npmjs.com/package/@tencent-weixin/openclaw-weixin) 2.4.10（MIT）和 [`dsh-weixin-ilink`](https://www.npmjs.com/package/dsh-weixin-ilink) 0.9.1（MIT）；没有使用 Apache-2.0 的 `dsh-im-connect` 的代码。
-- 二维码：[qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) 2.0.4（MIT）。
-- 子插件的组织方式参考 dsh-mnemon。
+- [dsh-superagent-prototype](https://github.com/deepseek-ai/dsh-superagent-prototype) (MIT) and DeepSeek's Super-agent article: the two-layer design, conversation norms, and report format.
+- WeChat protocol: [`@tencent-weixin/openclaw-weixin`](https://www.npmjs.com/package/@tencent-weixin/openclaw-weixin) 2.4.10 (MIT) and [`dsh-weixin-ilink`](https://www.npmjs.com/package/dsh-weixin-ilink) 0.9.1 (MIT); no code from the Apache-2.0 `dsh-im-connect`.
+- QR code: [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) 2.0.4 (MIT).
+- Sub-plugin layout inspired by dsh-mnemon.
 
-## 许可证
+## License
 
-MIT，全文见 [LICENSE](LICENSE)。Copyright (c) 2026 Starfield。
+MIT. See [LICENSE](LICENSE). Copyright (c) 2026 Starfield.
