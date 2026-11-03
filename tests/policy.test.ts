@@ -103,7 +103,7 @@ describe('the router policy', () => {
     expect(schedule).toContain('No ddl.md yet')
   })
 
-  it('writes a record into the family member\'s folder, for the conversation and for a worker in a subfolder', async () => {
+  it('writes a record into the user\'s folder, for the conversation and for a worker in a subfolder', async () => {
     const cwd = mkdtempSync(join(tmpdir(), 'dsa-policy-records-'))
     const router = mount('router', { cwd })
     const session = fakeSession('r1', { cwd: '/elsewhere' })

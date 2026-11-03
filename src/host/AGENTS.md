@@ -10,9 +10,9 @@ Host-side modules the entry plugins share, and the two prompts. Each module owns
 - Every host call must exist on the oldest host in `engines.dsh`, 0.2.1-rc.5: a spec's fake proves nothing about that. Methods added later go through a fallback (`compat.ts`), and a missing one is reported, not ignored.
 - Nothing this package hangs on a host event, timer, or microtask may let an error escape (`guarded` in `service.ts`): many fire for every session of the host, and one escaping once made every conversation unusable.
 - The fast path never calls a model: anything that can be decided by parsing files is decided here.
-- System notes the host sends into an assistant conversation start with the shared prefix in `watchdog.ts` and go through `sendHostNote` under the message source `host-note`, never as a `user` prompt: the host's conversation view draws a `user` message as the family member's own words. im-robot counts a turn this source starts as a follow-up, so its answer reaches WeChat.
+- System notes the host sends into an assistant conversation start with the shared prefix in `watchdog.ts` and go through `sendHostNote` under the message source `host-note`, never as a `user` prompt: the host's conversation view draws a `user` message as the user's own words. im-robot counts a turn this source starts as a follow-up, so its answer reaches WeChat.
 - The prompts are complete: the router prompt is the assistant conversation's whole system prompt, the worker prompt a worker's. `tests/workflow.test.ts` pins the rules the design depends on (conversation norms, outside content as data, the report format).
-- The worker's report (in English: the status line, the result, at most one question for the family) and the router's handling of it change together.
+- The worker's report (in English: the status line, the result, at most one question for the user) and the router's handling of it change together.
 - The router writes only through the record tools in `records/`; it has no general file write, shell, or web.
 - The access rules in `router.md` promise only what works: the router cannot grant outside the workspace on any host, and on 0.2.1-rc.5 a grant does not reach a worker's shell. End-to-end checks of file access need a workspace outside `/tmp`, which is always writable.
 
@@ -43,7 +43,7 @@ Host-side modules the entry plugins share, and the two prompts. Each module owns
 - Done (2026-11-01): the WeChat link's reconnect, diagnosis, options, and status mirroring for the IM tab; im-robot added the matching calls (`setBindingOptions`, `reconnect`, `diagnose`); they stay optional in `ImRobotLike` so an older im-robot is reported as outdated.
 - Done (2026-11-02, user request): the conversation title is the assistant's name, set as a user title (which stops the host's automatic titling) and set again after a rename on either side.
 - Done (2026-11-02, user request): the router records, changes, and looks up simple information itself with the record tools, in the same turn; the workers' file formats and `date` commands moved into the host; repeating items; reminders follow the calendar.
-- Done (2026-11-02, user request): system notes go in under their own message source, so the conversation view shows a folded notice instead of a message from the family member.
+- Done (2026-11-02, user request): system notes go in under their own message source, so the conversation view shows a folded notice instead of a message from the user.
 - Done (2026-11-02, after a report that the package made every session unusable on Desktop 0.2.1-rc.5): the host calls that host lacks (`presetForSession`, `tokenMeter.contextPressure`, `tools.definitions`, `agent.model`, `list_agents`) are replaced or have fallbacks, and listeners, timers, and deferred work are guarded.
 - Done (2026-11-02, user request): the reminder lead, daily brief, watchdog limit, and WeChat options are per assistant; the host no longer chooses a folder; workers are no longer pinned, since complete-subagent starts them on the model `delegate` chose from the list.
 - Open: tune both prompts after real conversations; the new rules have not met the real model yet.

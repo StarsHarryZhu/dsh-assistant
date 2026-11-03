@@ -30,7 +30,7 @@ export interface WechatLinkDeps {
 /** Plain-language reasons shown on the page. */
 export const REASONS = {
   noRobot: '微信组件没有加载，请在插件页确认 im-robot 已启用。',
-  noSession: '这位家人的对话还没建好，请稍等几秒再绑定。',
+  noSession: '这个助理的对话还没建好，请稍等几秒再绑定。',
   unknown: '绑定没有成功，请再试一次。',
   outdated: '微信组件版本太旧，不支持这个操作，请更新 im-robot。',
   failed: '操作没有成功，请再试一次。',

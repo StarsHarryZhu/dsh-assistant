@@ -17,7 +17,7 @@ const DONE_HEADING = '## 已完成'
 
 const TEMPLATE = `# DDL 与行程
 
-> 助理维护。每行是一项 DDL、日程或项目截止，时间是 UTC；「重复」里的时间是家人当地的时间。时间过去的事件自动删除；无日期事件完成 7 天后删除。
+> 助理维护。每行是一项 DDL、日程或项目截止，时间是 UTC；「重复」里的时间是你当地的时间。时间过去的事件自动删除；无日期事件完成 7 天后删除。
 
 ${REPEATS_HEADING}
 
@@ -38,7 +38,7 @@ const DONE_AT = /（完成 (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z)）\s*$/u
 
 export type RepeatName = RepeatRule['kind']
 
-/** A new item, in the family member's local time. */
+/** A new item, in the user's local time. */
 export interface CalendarItem {
   readonly title: string
   readonly kind: string
@@ -189,7 +189,7 @@ function place(lines: string[], entry: DdlEntry, doneAt?: number): void {
  * @param text - the file, undefined when absent.
  * @param item - the new item.
  * @param now - the current instant.
- * @param zone - the family member's IANA zone.
+ * @param zone - the user's IANA zone.
  * @returns the outcome.
  */
 export function addItem(text: string | undefined, item: CalendarItem, now: number, zone: string): CalendarResult {
@@ -252,7 +252,7 @@ function movedTimes(entry: DdlEntry, edit: CalendarEdit, zone: string): { start?
  * @param text - the file, undefined when absent.
  * @param edit - which item and what to do.
  * @param now - the current instant.
- * @param zone - the family member's IANA zone.
+ * @param zone - the user's IANA zone.
  * @returns the outcome.
  */
 export function updateItem(text: string | undefined, edit: CalendarEdit, now: number, zone: string): CalendarResult {
@@ -325,7 +325,7 @@ function changedEntry(entry: DdlEntry, edit: CalendarEdit, now: number, zone: st
 
 /**
  * @param entry - an entry.
- * @param zone - the family member's IANA zone.
+ * @param zone - the user's IANA zone.
  * @returns whether it has a clock time a reminder can lead: not all day, and
  * not a date-only deadline stored as 23:59.
  */

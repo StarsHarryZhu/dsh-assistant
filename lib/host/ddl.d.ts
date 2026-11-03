@@ -1,6 +1,6 @@
 /**
  * The fast path over `ddl.md`: parse the schedule file and render it in the
- * family member's time zone without calling a model. The router reads the
+ * user's time zone without calling a model. The router reads the
  * result as inline context, `/ddl` shows it directly, the daily brief decides
  * from it whether there is anything to say today, and the calendar tools
  * (records/calendar.ts) edit the file with these same shapes.
@@ -10,7 +10,7 @@
  *   `start – end`, or `无日期` for the time; a done line starts `- [x]` and ends
  *   `（完成 …）`. Times are UTC.
  * - a repeating item: `- 每周一三 19:00 · 日程 · 标题`, with 每天, 每周<days>,
- *   每月<n>日, or 每年<m>月<n>日, and an optional time in the family member's
+ *   每月<n>日, or 每年<m>月<n>日, and an optional time in the user's
  *   own clock, so it follows them across zones.
  * @module dsh-assisstant/host/ddl
  */
@@ -46,7 +46,7 @@ export interface DdlEntry {
     readonly kind: string;
     readonly title: string;
 }
-/** @returns how a repeat rule reads in the file and to the family: "每周一三". */
+/** @returns how a repeat rule reads in the file and to the user: "每周一三". */
 export declare function ruleText(rule: RepeatRule): string;
 /**
  * @param rule - a repeat rule.
@@ -82,21 +82,21 @@ export declare function zonedToUtc(date: string, time: string, zone: string): nu
  * items, items done this week, and how many open items come later.
  * @param entries - the parsed file.
  * @param now - the current instant.
- * @param zone - the family member's IANA zone.
+ * @param zone - the user's IANA zone.
  * @returns Markdown.
  */
 export declare function weekView(entries: readonly DdlEntry[], now: Date, zone: string): string;
 /**
  * @param entry - a one-off entry with a start.
- * @param zone - the family member's IANA zone.
+ * @param zone - the user's IANA zone.
  * @returns whether it is a whole-day 日程, stored as 00:00–23:59 local.
  */
 export declare function isAllDay(entry: DdlEntry, zone: string): boolean;
 /**
- * One entry on one line, in the family member's time, as tool results and
+ * One entry on one line, in the user's time, as tool results and
  * searches show it: "11/05 周四 14:30 · 日程 · 看牙医".
  * @param entry - the entry.
- * @param zone - the family member's IANA zone.
+ * @param zone - the user's IANA zone.
  * @returns the line.
  */
 export declare function describeEntry(entry: DdlEntry, zone: string): string;
@@ -105,7 +105,7 @@ export declare function describeEntry(entry: DdlEntry, zone: string): string;
  * stay out: they have their own reminders, and would make every day a brief day.
  * @param entries - the parsed file.
  * @param now - the current instant.
- * @param zone - the family member's IANA zone.
+ * @param zone - the user's IANA zone.
  * @returns one label per item, empty when today is free.
  */
 export declare function todayItems(entries: readonly DdlEntry[], now: Date, zone: string): string[];

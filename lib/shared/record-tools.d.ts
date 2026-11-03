@@ -1,6 +1,6 @@
 /**
  * The record tools' names and the plain titles their calls show under: the
- * family reads these in the conversation, never a tool's name. Shared by the
+ * user reads these in the conversation, never a tool's name. Shared by the
  * host's call presentation and the browser half's conversation row.
  * @module dsh-assisstant/shared/record-tools
  */
@@ -13,7 +13,7 @@ declare const TITLES: {
     readonly log_add: readonly ["记流水", "log"];
     readonly project_update: readonly ["改项目", "project"];
     readonly recall: readonly ["查记录", undefined];
-    readonly profile_set: readonly ["记下家人的信息", undefined];
+    readonly profile_set: readonly ["记下你的信息", undefined];
     readonly persona_set: readonly ["调整说话方式", undefined];
 };
 /** A record tool's name. */

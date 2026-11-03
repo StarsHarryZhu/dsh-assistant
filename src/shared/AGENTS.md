@@ -2,7 +2,7 @@
 
 ## 1. Role
 
-The identities, defaults, and data shapes both halves of the plugin read from the settings row: the package, preset, and panel ids, the defaults of the shared settings and of each assistant's own, the workers' models, and the assistant list (one entry per assistant: its name, the optional form of address for its family member, its folder, conversation, and what it changed from the defaults), WeChat request, and WeChat state shapes with defensive readers. The settings row is the channel between the assistant page and the host, so every reader accepts any stored value and keeps only well-formed entries.
+The identities, defaults, and data shapes both halves of the plugin read from the settings row: the package, preset, and panel ids, the defaults of the shared settings and of each assistant's own, the workers' models, and the assistant list (one entry per assistant: its name, the optional form of address for its user, its folder, conversation, and what it changed from the defaults), WeChat request, and WeChat state shapes with defensive readers. The settings row is the channel between the assistant page and the host, so every reader accepts any stored value and keeps only well-formed entries.
 
 ## 2. Constraints
 

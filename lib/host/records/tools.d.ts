@@ -1,6 +1,6 @@
 /**
- * The record tools: quick reads and writes of fixed files in one family
- * member's workspace, in the same turn and without a worker. They register in
+ * The record tools: quick reads and writes of fixed files in one user's
+ * workspace, in the same turn and without a worker. They register in
  * the two hidden presets' scope only, so no other session ever sees them.
  * Results are plain text for the model; a failure is a normal result it can act on.
  * @module dsh-assisstant/host/records/tools
@@ -8,7 +8,7 @@
 import type { SharedSettings } from '../service.ts';
 import type { AgentLike, ScheduleLike } from '../types.ts';
 import type { RecordStore } from './store.ts';
-/** Which family member a call acts for. */
+/** Which user a call acts for. */
 export interface RecordTarget {
     readonly store: RecordStore;
     readonly zone: string;

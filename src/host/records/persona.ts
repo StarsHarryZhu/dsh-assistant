@@ -1,5 +1,5 @@
 /**
- * The persona (`persona.md`): how the assistant talks to its family member.
+ * The persona (`persona.md`): how the assistant talks to its user.
  * Only the adjustable lines can change, each change is logged, and the host
  * (not the prompt) enforces the setting, the cooldown, and the length limit.
  * The fixed core has no way in: fields are a closed list and values one line.
@@ -23,7 +23,7 @@ const LOG_HEADING = '## Change log'
 const TEMPLATE = `# Persona
 
 ## Core (fixed)
-Honest. Protects the family member's safety. Never pretends to be a real person. Gives medical, legal, and financial information for reference only and never decides for them.
+Honest. Protects the user's safety. Never pretends to be a real person. Gives medical, legal, and financial information for reference only and never decides for them.
 
 ${ADJUSTABLE_HEADING}
 ${PERSONA_FIELDS.map(field => `- ${field}:`).join('\n')}
@@ -39,7 +39,7 @@ export interface PersonaLimits {
   /** When the file last changed, epoch milliseconds; undefined when it does not exist. */
   readonly changedAt: number | undefined
   readonly now: number
-  /** The family member asked for this change themselves, which the cooldown does not hold back. */
+  /** The user asked for this change themselves, which the cooldown does not hold back. */
   readonly requested: boolean
 }
 

@@ -1,7 +1,7 @@
 /**
  * dsh-assisstant policy, mounted once in each hidden preset.
  *
- * `role: router` (the `dsh-assisstant` preset, each family member's own
+ * `role: router` (the `dsh-assisstant` preset, each user's own
  * conversation):
  * - router.md as the whole system prompt;
  * - contexts: the calendar, the workspace (who it is, profile, persona,

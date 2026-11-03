@@ -1,7 +1,7 @@
 /**
  * dsh-assisstant policy, mounted once in each hidden preset.
  *
- * `role: router` (the `dsh-assisstant` preset, each family member's own
+ * `role: router` (the `dsh-assisstant` preset, each user's own
  * conversation):
  * - router.md as the whole system prompt;
  * - contexts: the calendar, the workspace (who it is, profile, persona,
@@ -103,7 +103,7 @@ export function balanceText(service: AssistantService): string {
   const { balanceThreshold, balanceReminder } = service.settings()
   const reminder = reminderFor(service.balance(), balanceThreshold, balanceReminder)
   if (reminder === undefined) return ''
-  return `# Balance\n\nThe account balance is low. After you finish answering the family member, add this sentence once, word for word, as the last line of this reply: ${reminder}\nDo not mention the balance otherwise.`
+  return `# Balance\n\nThe account balance is low. After you finish answering the user, add this sentence once, word for word, as the last line of this reply: ${reminder}\nDo not mention the balance otherwise.`
 }
 
 /** @returns what the router must know when an assistant's permission is not the default the prompt assumes. */
@@ -112,7 +112,7 @@ export function permissionText(mode: SandboxMode): string {
     return '# Permission\n\nThis assistant is read-only: workers cannot change any file and you cannot grant anything, so deny write-access requests. Your own records still work. When a request needs files changed, say in one plain sentence that the current permission does not allow it and that it can be changed in the IM tab.'
   }
   if (mode === 'danger-full-access') {
-    return '# Permission\n\nThis assistant has full access to this computer, which replaces the workspace limit under "Approving workers\' write access": you can grant paths, and start workers, outside the workspace folder. Allow what the task plainly needs when the family member asked for that place; still deny hidden files, keys, system folders, and other family members\' folders unless they asked for exactly that.'
+    return '# Permission\n\nThis assistant has full access to this computer, which replaces the workspace limit under "Approving workers\' write access": you can grant paths, and start workers, outside the workspace folder. Allow what the task plainly needs when the user asked for that place; still deny hidden files, keys, system folders, and other users\' folders unless they asked for exactly that.'
   }
   return ''
 }
@@ -124,7 +124,7 @@ export function channelText(service: AssistantService, sessionId: string): strin
   return [
     '# Reply channel: WeChat',
     '',
-    `The family member wrote from WeChat, and your reply is sent there as chat messages of at most ${chars} characters each, split at sentence breaks. Write like a person chatting: plain text, no Markdown, short complete sentences, and keep the whole reply brief. Say only the result or what they need to decide; never report progress or steps.`,
+    `The user wrote from WeChat, and your reply is sent there as chat messages of at most ${chars} characters each, split at sentence breaks. Write like a person chatting: plain text, no Markdown, short complete sentences, and keep the whole reply brief. Say only the result or what they need to decide; never report progress or steps.`,
     'When a list, table, or set of steps must stay in one message, wrap that block in <keep> and </keep> (the markers are not shown; one block holds at most 2000 characters).',
   ].join('\n')
 }
@@ -239,7 +239,7 @@ export function apply(ctx: Context, config: Config): void {
       } catch {
         return '# Schedule (ddl.md)\n\nNo ddl.md yet: nothing is recorded.'
       }
-      return `# Schedule (ddl.md, converted to the family member's time)\n\nThe host parsed ddl.md for you; trust this view and answer schedule questions from it.\n\n${weekView(parseDdl(file), new Date(), zoneOf(assembly?.agent))}`
+      return `# Schedule (ddl.md, converted to the user's time)\n\nThe host parsed ddl.md for you; trust this view and answer schedule questions from it.\n\n${weekView(parseDdl(file), new Date(), zoneOf(assembly?.agent))}`
     },
   }))
   ctx.effect(() => host.systemPrompt.context({

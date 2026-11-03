@@ -1,5 +1,5 @@
 /**
- * The record files of one family member's workspace. Every path stays inside
+ * The record files of one user's workspace. Every path stays inside
  * the workspace: names from the model pass through `folderName`, which leaves
  * no separators. A write goes to a temporary file first, so a crash never
  * leaves half a file; each tool reads, edits, and writes without yielding, so
@@ -10,7 +10,7 @@
 export declare const MAX_NAME_CHARS = 60;
 /** @returns the workspace-relative file of a named record: `lists/买菜.md`. */
 export declare function namedFile(folder: string, name: string): string;
-/** One family member's record files. */
+/** One user's record files. */
 export declare class RecordStore {
     readonly root: string;
     constructor(root: string);

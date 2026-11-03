@@ -97,7 +97,7 @@ export interface LayoutLike {
 
 /** `ctx.uiWorkspace` (`UiWorkspace`). */
 export interface UiWorkspaceLike {
-  /** The host's folder chooser; null when the family member cancels it. */
+  /** The host's folder chooser; null when the user cancels it. */
   pickDirectory(): Promise<string | null>
   archiveSession(sessionId: string): Promise<void>
   /** Show the session in the host's conversation view and return the main area to it. */

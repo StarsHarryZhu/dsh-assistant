@@ -27,7 +27,7 @@ interface DesktopPicker {
   pick(): Promise<string | null>
 }
 
-/** @returns the folder the family member chose, or null when they cancelled. */
+/** @returns the folder the user chose, or null when they cancelled. */
 function pickFolder(workspace: UiWorkspaceLike | undefined): Promise<string | null> {
   const desktop = (globalThis as { __DSH_DIRECTORY_PICKER__?: DesktopPicker }).__DSH_DIRECTORY_PICKER__
   if (desktop !== undefined) return desktop.pick()

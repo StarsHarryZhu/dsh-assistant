@@ -80,7 +80,7 @@ describe('settings readers', () => {
   it('makes a safe folder name', () => {
     expect(folderName('妈妈')).toBe('妈妈')
     expect(folderName('a/b:c')).toBe('a-b-c')
-    expect(folderName('..')).toBe('family')
+    expect(folderName('..')).toBe('untitled')
   })
 })
 

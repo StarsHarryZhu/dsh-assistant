@@ -1,5 +1,5 @@
 /**
- * The persona (`persona.md`): how the assistant talks to its family member.
+ * The persona (`persona.md`): how the assistant talks to its user.
  * Only the adjustable lines can change, each change is logged, and the host
  * (not the prompt) enforces the setting, the cooldown, and the length limit.
  * The fixed core has no way in: fields are a closed list and values one line.
@@ -19,7 +19,7 @@ export interface PersonaLimits {
     /** When the file last changed, epoch milliseconds; undefined when it does not exist. */
     readonly changedAt: number | undefined;
     readonly now: number;
-    /** The family member asked for this change themselves, which the cooldown does not hold back. */
+    /** The user asked for this change themselves, which the cooldown does not hold back. */
     readonly requested: boolean;
 }
 /** The outcome: the new text, or why not. */

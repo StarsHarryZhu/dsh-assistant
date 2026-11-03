@@ -16,7 +16,7 @@ import { SYSTEM_PREFIX } from './watchdog.ts'
  * @returns the system note.
  */
 export function greetingText(): string {
-  return `${SYSTEM_PREFIX} This is your first meeting with the family member. Say hello in one or two plain sentences: your name, and that you can keep their schedule, note things down, and run errands. Do not mention that this is a system message.`
+  return `${SYSTEM_PREFIX} This is your first meeting with the user. Say hello in one or two plain sentences: your name, and that you can keep their schedule, note things down, and run errands. Do not mention that this is a system message.`
 }
 
 /** @returns the people that still need a conversation and have a folder to hold it. */

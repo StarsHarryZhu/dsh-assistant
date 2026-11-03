@@ -31,7 +31,7 @@ describe('ddl.md fast path', () => {
     expect(entries[6]?.done).toBe(true)
   })
 
-  it('renders the week in the family member\'s zone', () => {
+  it('renders the week in the user\'s zone', () => {
     const view = weekView(parseDdl(FILE), new Date('2026-10-27T14:00:00Z'), 'America/New_York')
     expect(view).toContain('**未来一周 · 10/27 周二 – 11/02 周一**')
     expect(view).toContain('- 10/27 周二（今天）\n  - 📅 全天 出差（至 10/29）')

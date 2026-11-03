@@ -7,7 +7,7 @@
 import type { DdlEntry, RepeatRule } from '../ddl.ts';
 export declare const CALENDAR_FILE = "ddl.md";
 export type RepeatName = RepeatRule['kind'];
-/** A new item, in the family member's local time. */
+/** A new item, in the user's local time. */
 export interface CalendarItem {
     readonly title: string;
     readonly kind: string;
@@ -46,7 +46,7 @@ export declare function invalidTiming(item: Partial<CalendarItem>): string | und
  * @param text - the file, undefined when absent.
  * @param item - the new item.
  * @param now - the current instant.
- * @param zone - the family member's IANA zone.
+ * @param zone - the user's IANA zone.
  * @returns the outcome.
  */
 export declare function addItem(text: string | undefined, item: CalendarItem, now: number, zone: string): CalendarResult;
@@ -55,13 +55,13 @@ export declare function addItem(text: string | undefined, item: CalendarItem, no
  * @param text - the file, undefined when absent.
  * @param edit - which item and what to do.
  * @param now - the current instant.
- * @param zone - the family member's IANA zone.
+ * @param zone - the user's IANA zone.
  * @returns the outcome.
  */
 export declare function updateItem(text: string | undefined, edit: CalendarEdit, now: number, zone: string): CalendarResult;
 /**
  * @param entry - an entry.
- * @param zone - the family member's IANA zone.
+ * @param zone - the user's IANA zone.
  * @returns whether it has a clock time a reminder can lead: not all day, and
  * not a date-only deadline stored as 23:59.
  */

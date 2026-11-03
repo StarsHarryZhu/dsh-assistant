@@ -162,35 +162,35 @@ describe('the settings row', () => {
 
   it('leaves each assistant conversation on the model its composer chose when the settings change', async () => {
     const { agents, registry, update } = setup()
-    const family = fakeAgent(fakeSession('r1'), { provider: 'p', model: 'chosen', reasoningEffort: 'low' })
-    agents.set('r1', family)
+    const user = fakeAgent(fakeSession('r1'), { provider: 'p', model: 'chosen', reasoningEffort: 'low' })
+    agents.set('r1', user)
     registry.presets.set('r1', 'dsh-assisstant')
     await update({ compactRatio: 0.8 })
-    expect(family.selections).toEqual([])
-    expect(family.model.current()).toEqual({ provider: 'p', model: 'chosen', reasoningEffort: 'low' })
+    expect(user.selections).toEqual([])
+    expect(user.model.current()).toEqual({ provider: 'p', model: 'chosen', reasoningEffort: 'low' })
   })
 
   it('moves a live conversation at once when its assistant\'s permission changes', async () => {
     const person = { id: 'mom', name: '妈妈', cwd: '/w', sessionId: 'r1' }
     const { agents, update } = setup({ people: [person] })
-    const family = fakeAgent(fakeSession('r1'))
-    agents.set('r1', family)
+    const user = fakeAgent(fakeSession('r1'))
+    agents.set('r1', user)
     await update({ compactRatio: 0.8 })
-    expect(family.session.appended).toEqual([])
+    expect(user.session.appended).toEqual([])
     await update({ people: [{ ...person, settings: { sandboxMode: 'read-only' } }] })
-    expect(family.session.appended).toEqual([{ type: 'sandbox/mode', data: { mode: 'read-only' } }])
+    expect(user.session.appended).toEqual([{ type: 'sandbox/mode', data: { mode: 'read-only' } }])
   })
 
   it('titles each assistant conversation with its assistant\'s name and keeps it', async () => {
     const { ctx, agents, registry, titles, renames, update, settle } = setup({ people: [{ id: 'mom', name: '阿福', cwd: '/w', sessionId: 'r1' }] })
-    const family = fakeAgent(fakeSession('r1'))
+    const user = fakeAgent(fakeSession('r1'))
     const worker = fakeAgent(fakeSession('w1', { parentSession: 'r1' }))
     const other = fakeAgent(fakeSession('o1'))
-    for (const agent of [family, worker, other]) agents.set(agent.id, agent)
+    for (const agent of [user, worker, other]) agents.set(agent.id, agent)
     registry.presets.set('r1', 'dsh-assisstant')
     registry.presets.set('w1', 'dsh-assisstant')
     titles.set('r1', { title: '交房租每日提醒', source: { kind: 'fallback' } })
-    for (const agent of [family, worker, other]) ctx.emit('agent/created', { agent })
+    for (const agent of [user, worker, other]) ctx.emit('agent/created', { agent })
     await settle()
     expect(renames).toEqual(['r1:阿福'])
 
@@ -199,7 +199,7 @@ describe('the settings row', () => {
 
     // A title from the host's automatic titling or the session list is replaced.
     titles.set('r1', { title: '看牙医', source: { kind: 'provider' } })
-    ctx.emit('session/event', family.session, { type: 'session/title', data: titles.get('r1') })
+    ctx.emit('session/event', user.session, { type: 'session/title', data: titles.get('r1') })
     await settle()
     expect(renames).toEqual(['r1:阿福', 'r1:小福', 'r1:小福'])
     expect(titles.get('r1')?.title).toBe('小福')
@@ -208,12 +208,12 @@ describe('the settings row', () => {
   describe('on a host whose preset registry has no presetForSession (0.2.1-rc.5)', () => {
     it('still titles and tells assistant sessions from others', async () => {
       const { ctx, agents, registry, renames, update, settle } = setup({ people: [{ id: 'mom', name: '阿福', cwd: '/w', sessionId: 'r1' }] }, { registry: new OldRegistry() })
-      const family = fakeAgent(fakeSession('r1'))
+      const user = fakeAgent(fakeSession('r1'))
       const other = fakeAgent(fakeSession('o1'))
-      agents.set('r1', family)
+      agents.set('r1', user)
       agents.set('o1', other)
       registry.presets.set('r1', 'dsh-assisstant')
-      ctx.emit('agent/created', { agent: family })
+      ctx.emit('agent/created', { agent: user })
       ctx.emit('agent/created', { agent: other })
       await settle()
       expect(renames).toEqual(['r1:阿福'])

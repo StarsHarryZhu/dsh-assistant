@@ -5,7 +5,7 @@
  * service the preset's plugins read. It also:
  *
  * - hides the `dsh-assisstant` preset from every preset list;
- * - creates each new family member's conversation (a session on the hidden
+ * - creates each new user's conversation (a session on the hidden
  *   preset in their folder) and writes it back into the assistant list;
  * - tells complete-subagent which models workers may run;
  * - titles each assistant conversation with its assistant's name;

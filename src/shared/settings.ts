@@ -18,7 +18,7 @@ export const PACKAGE_NAME = '@starsharryzhu/dsh-assistant'
  */
 export const PLUGIN_ID = 'dsh-assisstant'
 
-/** The hidden router preset: each family member's own conversation. */
+/** The hidden router preset: each user's own conversation. */
 export const PRESET_ID = 'dsh-assisstant'
 
 /** The hidden worker preset every `delegate` child of an assistant conversation runs on. */
@@ -89,7 +89,7 @@ export const COMPACT_RATIO_RANGE = { min: 0.3, max: 0.85 } as const
 export const MAX_BALANCE_CHECK_MINUTES = 10_080
 
 /**
- * One assistant: the family member it serves sets it up on the page with a
+ * One assistant: the user it serves sets it up on the page with a
  * name, what it should call them, and a workspace folder holding its one
  * conversation.
  */
@@ -98,7 +98,7 @@ export interface Person {
   readonly id: string
   /** The assistant's name, shown on its tab. */
   readonly name: string
-  /** What the assistant calls its family member; absent when they left it empty. */
+  /** What the assistant calls its user; absent when they left it empty. */
   readonly address?: string
   /** A local label for the bound WeChat account, shown in the IM tab. */
   /** Absolute workspace folder, chosen when the assistant is created. */
@@ -353,5 +353,5 @@ export function readWechatStates(value: unknown): Record<string, WechatState> {
  */
 export function folderName(name: string): string {
   const cleaned = name.replace(/[/\\:*?"<>|\u0000-\u001F]/gu, '-').trim()
-  return cleaned === '' || cleaned === '.' || cleaned === '..' ? 'family' : cleaned
+  return cleaned === '' || cleaned === '.' || cleaned === '..' ? 'untitled' : cleaned
 }

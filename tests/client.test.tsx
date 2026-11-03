@@ -130,7 +130,6 @@ describe('the browser half', () => {
     const Page = find('main', 'dsh-assisstant')
     render(<Page />)
     expect(screen.getByText('创建一个助理')).toBeTruthy()
-    expect(screen.queryByText(/家人建/u)).toBeNull()
     fireEvent.change(screen.getByLabelText('助理的名字'), { target: { value: ' 阿福 ' } })
     fireEvent.change(screen.getByLabelText('希望它怎么称呼你'), { target: { value: '妈妈' } })
     const create = screen.getByText('创建') as HTMLButtonElement

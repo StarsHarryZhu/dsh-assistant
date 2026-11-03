@@ -15,7 +15,7 @@ export declare const PACKAGE_NAME = "@starsharryzhu/dsh-assistant";
  * installs stay where they are after the package was renamed.
  */
 export declare const PLUGIN_ID = "dsh-assisstant";
-/** The hidden router preset: each family member's own conversation. */
+/** The hidden router preset: each user's own conversation. */
 export declare const PRESET_ID = "dsh-assisstant";
 /** The hidden worker preset every `delegate` child of an assistant conversation runs on. */
 export declare const WORKER_PRESET_ID = "dsh-assisstant-worker";
@@ -75,7 +75,7 @@ export declare const COMPACT_RATIO_RANGE: {
 /** The longest balance check interval: a week, well below what a timer can hold. */
 export declare const MAX_BALANCE_CHECK_MINUTES = 10080;
 /**
- * One assistant: the family member it serves sets it up on the page with a
+ * One assistant: the user it serves sets it up on the page with a
  * name, what it should call them, and a workspace folder holding its one
  * conversation.
  */
@@ -84,7 +84,7 @@ export interface Person {
     readonly id: string;
     /** The assistant's name, shown on its tab. */
     readonly name: string;
-    /** What the assistant calls its family member; absent when they left it empty. */
+    /** What the assistant calls its user; absent when they left it empty. */
     readonly address?: string;
     /** A local label for the bound WeChat account, shown in the IM tab. */
     /** Absolute workspace folder, chosen when the assistant is created. */

@@ -1,6 +1,6 @@
 /**
- * The workspace context: the assistant's name and what it calls its family
- * member (both set on the assistant page), `profile.md`, `persona.md` with its
+ * The workspace context: the assistant's name and what it calls its user
+ * (both set on the assistant page), `profile.md`, `persona.md` with its
  * self-correction status, the project list, and what the other records hold
  * (names only: the contents are looked up when needed). Read synchronously
  * from the session's folder on every assembly, cut to the configured limits,
@@ -11,7 +11,7 @@
 export interface WorkspaceOptions {
     /** The assistant's name from the assistant list, when known. */
     readonly name?: string | undefined;
-    /** What the assistant calls its family member, when they set it. */
+    /** What the assistant calls its user, when they set it. */
     readonly address?: string | undefined;
     readonly profileMaxChars: number;
     readonly personaMaxChars: number;

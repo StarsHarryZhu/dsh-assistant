@@ -74,7 +74,7 @@ export async function armReminder(context: ReminderContext, entry: DdlEntry): Pr
   const { schedule, sessionId, zone, leadMinutes, now } = context
   if (!hasClockTime(entry, zone)) return ''
   if (schedule === undefined) return 'Reminders are unavailable right now, so this item has no reminder.'
-  const prompt = `${PROMPT_PREFIX}${describeEntry(entry, zone)}。用一句温和的话提醒家人。`
+  const prompt = `${PROMPT_PREFIX}${describeEntry(entry, zone)}。用一句温和的话提醒用户。`
   const title = titleOf(entry)
   if (entry.repeat !== undefined) {
     const { rule, time } = entry.repeat

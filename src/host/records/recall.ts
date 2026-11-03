@@ -1,6 +1,6 @@
 /**
  * Looking up what is recorded: one category or all of them, by name, date
- * range, or keywords, with schedule times in the family member's own clock.
+ * range, or keywords, with schedule times in the user's own clock.
  * @module dsh-assisstant/host/records/recall
  */
 
@@ -114,9 +114,9 @@ function projectLines(store: RecordStore, name: string | undefined): string[] {
 
 /**
  * Look something up.
- * @param store - the family member's records.
+ * @param store - the user's records.
  * @param query - what to look up.
- * @param zone - the family member's IANA zone.
+ * @param zone - the user's IANA zone.
  * @param now - the current instant.
  * @returns plain text for the model.
  */

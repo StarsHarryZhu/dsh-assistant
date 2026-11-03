@@ -151,7 +151,7 @@ export function calendarText(now: Date, zone: string): string {
     return `${day.iso} ${day.weekday}${shift}`
   })
   return [
-    '# Family calendar',
+    '# User calendar',
     '',
     `- The user's current time zone: ${zone} (${today.offset}). Read every date or time the user gives without a zone in this zone, and show every time converted to it. Never mention time zones to the user unless they ask. When another context says the browser time zone is unavailable, use this zone and do not ask.`,
     `- Today: ${today.iso} ${today.weekday}.`,

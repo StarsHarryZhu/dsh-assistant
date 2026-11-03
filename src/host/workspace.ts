@@ -1,6 +1,6 @@
 /**
- * The workspace context: the assistant's name and what it calls its family
- * member (both set on the assistant page), `profile.md`, `persona.md` with its
+ * The workspace context: the assistant's name and what it calls its user
+ * (both set on the assistant page), `profile.md`, `persona.md` with its
  * self-correction status, the project list, and what the other records hold
  * (names only: the contents are looked up when needed). Read synchronously
  * from the session's folder on every assembly, cut to the configured limits,
@@ -18,7 +18,7 @@ import { MEMO_FILE, readMemos } from './records/memos.ts'
 export interface WorkspaceOptions {
   /** The assistant's name from the assistant list, when known. */
   readonly name?: string | undefined
-  /** What the assistant calls its family member, when they set it. */
+  /** What the assistant calls its user, when they set it. */
   readonly address?: string | undefined
   readonly profileMaxChars: number
   readonly personaMaxChars: number
@@ -95,11 +95,11 @@ function utc(ms: number): string {
  * @returns the context text.
  */
 export function workspaceText(cwd: string | undefined, options: WorkspaceOptions, now: number, fs: WorkspaceFs = nodeFs): string {
-  const lines: string[] = ['# Family member workspace', '']
-  if (options.name !== undefined) lines.push(`- Your name is ${options.name}; the family member chose it. Use it when they ask who you are.`)
+  const lines: string[] = ['# User workspace', '']
+  if (options.name !== undefined) lines.push(`- Your name is ${options.name}; the user chose it. Use it when they ask who you are.`)
   lines.push(options.address === undefined
-    ? '- This workspace belongs to one family member, who set no form of address. Speak warmly without one, unless profile.md or persona.md records what they asked to be called.'
-    : `- This workspace belongs to one family member, who asked to be called ${options.address}. Call them that unless profile.md or persona.md records that they later asked for another form of address.`)
+    ? '- This workspace belongs to one user, who set no form of address. Speak warmly without one, unless profile.md or persona.md records what they asked to be called.'
+    : `- This workspace belongs to one user, who asked to be called ${options.address}. Call them that unless profile.md or persona.md records that they later asked for another form of address.`)
   if (cwd === undefined) {
     lines.push('- The workspace folder is unknown in this assembly; read the files with relative paths.')
     return lines.join('\n')
@@ -109,7 +109,7 @@ export function workspaceText(cwd: string | undefined, options: WorkspaceOptions
   const profile = fs.read(join(cwd, 'profile.md'))
   lines.push('', '## profile.md')
   if (profile === undefined || profile.trim() === '') {
-    lines.push('No profile yet: this is a new family member. Get to know them naturally while you help, one small thing at a time, never with a questionnaire. Record the first fact as soon as you learn it.')
+    lines.push('No profile yet: this is a new user. Get to know them naturally while you help, one small thing at a time, never with a questionnaire. Record the first fact as soon as you learn it.')
   } else {
     lines.push(capped(profile, options.profileMaxChars, 'profile.md'))
   }

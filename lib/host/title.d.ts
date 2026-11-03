@@ -21,7 +21,7 @@ export declare class TitlePin {
     constructor(deps: TitlePinDeps);
     /**
      * Give a live assistant conversation its assistant's name, unless it has it.
-     * @param session - a live root session on the family preset.
+     * @param session - a live root session on the user preset.
      */
     apply(session: SessionLike): void;
     /**

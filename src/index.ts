@@ -5,7 +5,7 @@
  * service the preset's plugins read. It also:
  *
  * - hides the `dsh-assisstant` preset from every preset list;
- * - creates each new family member's conversation (a session on the hidden
+ * - creates each new user's conversation (a session on the hidden
  *   preset in their folder) and writes it back into the assistant list;
  * - tells complete-subagent which models workers may run;
  * - titles each assistant conversation with its assistant's name;
@@ -84,7 +84,7 @@ export const Config: z<Config> = z.object({
   balanceReminder: z.string().default(DEFAULTS.balanceReminder)
     .description('Reminder wording; {balance} and {threshold} are filled in').volatile(),
   personaSelfCorrect: z.boolean().default(DEFAULTS.personaSelfCorrect)
-    .description('Let the assistant adjust its persona to each family member').volatile(),
+    .description('Let the assistant adjust its persona to each user').volatile(),
   personaCooldownHours: z.natural().default(DEFAULTS.personaCooldownHours)
     .description('Hours between two persona changes').volatile(),
   personaMaxChars: z.natural().min(200).default(DEFAULTS.personaMaxChars)
@@ -208,7 +208,7 @@ export function apply(ctx: Context, config: Config): void {
 
   ctx.inject(['agentPresets'], (scope) => {
     const restore = hidePreset((scope as unknown as { agentPresets: AgentPresetsLike }).agentPresets, [PRESET_ID, WORKER_PRESET_ID])
-    if (restore === undefined) warn('the preset registry has no list() to wrap, so the family preset stays visible in the preset pickers')
+    if (restore === undefined) warn('the preset registry has no list() to wrap, so the user preset stays visible in the preset pickers')
     else scope.effect(() => restore)
   })
 

@@ -1,7 +1,7 @@
 /**
  * The assistant page's and settings page's copy. Chinese is the primary
  * language; the fallback translator reads Chinese too, because the page is
- * made for family members who read Chinese.
+ * made for users who read Chinese.
  * @module dsh-assisstant/client/locales
  */
 

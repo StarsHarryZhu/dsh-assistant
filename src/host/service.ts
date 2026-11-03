@@ -54,7 +54,7 @@ export function guarded<A extends unknown[]>(warn: (message: string) => void, la
 /**
  * Send a host note into an assistant conversation as a turn of its own, resuming a
  * cold session. Its source is not `user`, so the host's conversation view draws
- * one folded notice instead of the family member's own words, and session
+ * one folded notice instead of the user's own words, and session
  * titles ignore it; im-robot counts the turn as a follow-up and pushes the
  * answer to WeChat.
  * @param controller - the session controller.
@@ -80,7 +80,7 @@ export interface AssistantService {
   refreshBalance(): Promise<BalanceState>
   lastInput(sessionId: string): InputChannel
   markInput(sessionId: string, channel: InputChannel): void
-  /** The family member's current IANA zone: the latest browser zone of an assistant conversation, else the host's. */
+  /** The user's current IANA zone: the latest browser zone of an assistant conversation, else the host's. */
   zoneFor(session: SessionLike | undefined): string
 }
 
@@ -90,7 +90,7 @@ export interface AssistantService {
  * Settings updates run in the HMR service's exclusive transactions, which
  * refuse to nest; the "inside a transaction" flag is an AsyncLocalStorage, so
  * every async continuation started by a settings change (this plugin's
- * reaction to a new family member, a WeChat login that a request started)
+ * reaction to a new user, a WeChat login that a request started)
  * still carries it. Leaving that storage lets the write queue behind the open
  * transaction instead of failing.
  * @param hmr - the `hmr` service, if present.

@@ -1,11 +1,11 @@
 /**
  * The watchdog: an outside control loop over the assistant conversations and
- * their workers (the Super-agent design's Watchdog, reduced to what a family
+ * their workers (the Super-agent design's Watchdog, reduced to what a user
  * install needs). It watches activity, not processes:
  *
  * - an assistant conversation whose turn has produced no session event for the
  *   stall limit is stopped, and the conversation gets a system note so it
- *   tells the family member in plain words;
+ *   tells the user in plain words;
  * - a worker that has gone quiet for the stall limit while running is reported
  *   to its assistant conversation once, which decides whether to wait, ask it, or
  *   interrupt it.
@@ -37,7 +37,7 @@ interface Tracked {
   handled?: number
 }
 
-/** Starts every system note, so the router tells it from the family member's words. */
+/** Starts every system note, so the router tells it from the user's words. */
 export const SYSTEM_PREFIX = '[assistant-system]'
 
 /** Watches assistant sessions; the plugin feeds it events and ticks it on a timer. */
@@ -91,9 +91,9 @@ export class Watchdog {
       if (tracked.role === 'router') {
         tracked.running = false
         this.deps.cancel(sessionId)
-        this.deps.notify(sessionId, `${SYSTEM_PREFIX} Watchdog: the last turn made no progress for over ${minutes} minutes and was stopped automatically. Tell the family member in one plain sentence that it did not get finished, and ask whether they want to try again in other words.`)
+        this.deps.notify(sessionId, `${SYSTEM_PREFIX} Watchdog: the last turn made no progress for over ${minutes} minutes and was stopped automatically. Tell the user in one plain sentence that it did not get finished, and ask whether they want to try again in other words.`)
       } else {
-        this.deps.notify(tracked.router, `${SYSTEM_PREFIX} Watchdog: background worker ${sessionId} has made no progress for ${minutes} minutes. If needed, ask it with send_message, or stop it with interrupt_agent and start the work again. Do not tell the family member unless the work cannot get done because of this.`)
+        this.deps.notify(tracked.router, `${SYSTEM_PREFIX} Watchdog: background worker ${sessionId} has made no progress for ${minutes} minutes. If needed, ask it with send_message, or stop it with interrupt_agent and start the work again. Do not tell the user unless the work cannot get done because of this.`)
       }
       acted.push(sessionId)
     }

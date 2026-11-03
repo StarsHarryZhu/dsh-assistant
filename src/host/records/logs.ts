@@ -1,6 +1,6 @@
 /**
  * Logs: dated entries that pile up and keep their history (`logs/<名>.md`):
- * blood pressure, weight, expenses. Times are the family member's own clock.
+ * blood pressure, weight, expenses. Times are the user's own clock.
  * @module dsh-assisstant/host/records/logs
  */
 

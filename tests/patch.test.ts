@@ -28,7 +28,7 @@ describe('the bundle patch', () => {
     expect(row('dsh-assisstant')).toContain("name: '@starsharryzhu/dsh-assistant'\n")
   })
 
-  it('mounts every dependency in the group, limited to the family presets and guarded against a standalone copy', () => {
+  it('mounts every dependency in the group, limited to the user presets and guarded against a standalone copy', () => {
     const group = row('dsh-assisstant-subplugins')
     expect(group).toContain("name: '@starsharryzhu/dsh-assistant/bundle'")
     expect(group).toContain('group: true')

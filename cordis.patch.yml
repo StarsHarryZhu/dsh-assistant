@@ -14,7 +14,7 @@
 #    the group plugin drops such a literal, which this patch never sets.
 #    complete-subagent offers workers only the models the settings row sets
 #    through its service (`ownModel: false`), never the conversation's own.
-# 3. The router preset: the family member's own conversation. A strict router
+# 3. The router preset: the user's own conversation. A strict router
 #    (as dsh-superagent-prototype's main Session): it reads, talks, sets
 #    reminders, records simple information with the policy's record tools over
 #    fixed files, and hands the rest to a worker with `delegate`; it has no
@@ -47,7 +47,7 @@
       config:
         id: dsh-assisstant
         name: 助理
-        description: 助理和家人的对话（隐藏，不供手动选择）。
+        description: 助理和用户的对话（隐藏，不供手动选择）。
         order: 90
         plugins:
           - id: time-context

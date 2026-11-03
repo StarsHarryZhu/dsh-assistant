@@ -1,11 +1,11 @@
 /**
  * The watchdog: an outside control loop over the assistant conversations and
- * their workers (the Super-agent design's Watchdog, reduced to what a family
+ * their workers (the Super-agent design's Watchdog, reduced to what a user
  * install needs). It watches activity, not processes:
  *
  * - an assistant conversation whose turn has produced no session event for the
  *   stall limit is stopped, and the conversation gets a system note so it
- *   tells the family member in plain words;
+ *   tells the user in plain words;
  * - a worker that has gone quiet for the stall limit while running is reported
  *   to its assistant conversation once, which decides whether to wait, ask it, or
  *   interrupt it.
@@ -23,7 +23,7 @@ export interface WatchdogDeps {
     /** Send a system note into an assistant conversation. */
     notify(routerSessionId: string, text: string): void;
 }
-/** Starts every system note, so the router tells it from the family member's words. */
+/** Starts every system note, so the router tells it from the user's words. */
 export declare const SYSTEM_PREFIX = "[assistant-system]";
 /** Watches assistant sessions; the plugin feeds it events and ticks it on a timer. */
 export declare class Watchdog {

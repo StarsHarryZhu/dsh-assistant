@@ -290,7 +290,7 @@ describe('list_update', () => {
     expect(readdirSync(root).sort()).toEqual(['lists', 'logs', 'projects'])
     expect(readdirSync(join(root, 'lists'))).toEqual(['..-..-evil.md'])
     expect(readdirSync(join(root, 'logs'))).toEqual(['..-evil.md'])
-    expect(readdirSync(join(root, 'projects'))).toEqual(['family.md'])
+    expect(readdirSync(join(root, 'projects'))).toEqual(['untitled.md'])
   })
 })
 
@@ -363,12 +363,12 @@ describe('profile_set', () => {
     expect(file('profile.md')).toBe(before)
   })
 
-  it('rejects a field outside the list, family members included', async () => {
+  it('rejects a field outside the list', async () => {
     const { call, file } = setup()
     await expect(call('profile_set', { field: 'Bank card', value: 'x' })).rejects.toThrow()
-    await expect(call('profile_set', { field: 'Family members', value: 'x' })).rejects.toThrow()
+    await expect(call('profile_set', { field: 'Passport', value: 'x' })).rejects.toThrow()
     await call('profile_set', { field: 'Likes', value: 'tea' })
-    expect(file('profile.md')).not.toMatch(/family/iu)
+    expect(file('profile.md')).not.toMatch(/passport/iu)
     expect(file('profile.md')).toContain('- Form of address:')
     expect(file('profile.md')).not.toMatch(/[\u4e00-\u9fff]/u)
   })

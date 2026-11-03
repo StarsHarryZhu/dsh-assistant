@@ -60,7 +60,7 @@ function plain(people: readonly Person[]): Record<string, unknown>[] {
 export interface Naming {
   /** The assistant's name. */
   readonly name: string
-  /** What it should call its family member; empty to leave it to the assistant. */
+  /** What it should call its user; empty to leave it to the assistant. */
   readonly address: string
 }
 
@@ -74,8 +74,8 @@ function named(naming: Naming): Pick<Person, 'name' | 'address'> {
  * Create an assistant; the host creates its conversation.
  * @param form - the settings form.
  * @param view - the current view.
- * @param naming - its name and what it calls its family member.
- * @param cwd - the workspace folder the family member chose.
+ * @param naming - its name and what it calls its user.
+ * @param cwd - the workspace folder the user chose.
  * @returns the new assistant's id, or undefined when the write was refused.
  */
 export async function addPerson(form: ConfigFormLike, view: AssistantsView, naming: Naming, cwd: string): Promise<string | undefined> {
@@ -85,7 +85,7 @@ export async function addPerson(form: ConfigFormLike, view: AssistantsView, nami
   return ok ? id : undefined
 }
 
-/** Save an assistant's name, what it calls its family member, and its own settings; only what differs from the defaults is stored. */
+/** Save an assistant's name, what it calls its user, and its own settings; only what differs from the defaults is stored. */
 export function updateAssistant(form: ConfigFormLike, view: AssistantsView, id: string, naming: Naming, values: AssistantSettings): Promise<boolean> {
   const settings = Object.fromEntries(Object.entries(values).filter(([key, value]) => ASSISTANT_DEFAULTS[key as keyof AssistantSettings] !== value))
   const people = view.people.map((person) => {

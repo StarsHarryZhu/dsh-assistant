@@ -1,6 +1,6 @@
 /**
  * The profile (`profile.md`): what the assistant should always know about its
- * family member, one line per field, read in full on every turn and therefore
+ * user, one line per field, read in full on every turn and therefore
  * held to a length limit. The model writes it for itself, so it is in English.
  * @module dsh-assisstant/host/records/profile
  */

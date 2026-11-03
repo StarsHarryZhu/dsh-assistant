@@ -1,6 +1,6 @@
 /**
- * The record tools: quick reads and writes of fixed files in one family
- * member's workspace, in the same turn and without a worker. They register in
+ * The record tools: quick reads and writes of fixed files in one user's
+ * workspace, in the same turn and without a worker. They register in
  * the two hidden presets' scope only, so no other session ever sees them.
  * Results are plain text for the model; a failure is a normal result it can act on.
  * @module dsh-assisstant/host/records/tools
@@ -29,7 +29,7 @@ import type { ReminderContext } from './reminders.ts'
 import type { RecordStore } from './store.ts'
 import { namedFile } from './store.ts'
 
-/** Which family member a call acts for. */
+/** Which user a call acts for. */
 export interface RecordTarget {
   readonly store: RecordStore
   readonly zone: string
@@ -83,7 +83,7 @@ const WEEKDAYS = {
 } as const
 const REPEAT_NAMES = ['daily', 'weekly', 'monthly', 'yearly'] as const
 
-/** @returns a pending-call card with a plain title; the family reads it in the conversation. */
+/** @returns a pending-call card with a plain title; the user reads it in the conversation. */
 function card(title: string, kind: 'read' | 'other' = 'other') {
   return { card: 'generic' as const, title, kind }
 }
@@ -102,7 +102,7 @@ function sentences(...parts: readonly string[]): string {
 export function recordTools(role: 'router' | 'worker', deps: RecordToolDeps): unknown[] {
   const run = async (exec: { agent?: unknown }, body: (target: RecordTarget, now: number) => Outcome | Promise<Outcome>): Promise<Outcome> => {
     const target = deps.target(exec.agent as AgentLike | undefined)
-    if (target === undefined) return { ok: false, message: 'This family member has no workspace, so nothing was recorded.' }
+    if (target === undefined) return { ok: false, message: 'This user has no workspace, so nothing was recorded.' }
     try {
       return await body(target, Date.now())
     } catch (error) {
@@ -351,7 +351,7 @@ export function recordTools(role: 'router' | 'worker', deps: RecordToolDeps): un
     ...shared,
     defineTool({
       name: 'profile_set',
-      description: 'Record a lasting fact about the family member that you should always know. It shows in every turn, so keep it short; do not announce it.',
+      description: 'Record a lasting fact about the user that you should always know. It shows in every turn, so keep it short; do not announce it.',
       parameters: {
         field: { type: 'string', required: true, enum: PROFILE_FIELDS, description: 'Where the fact belongs.' },
         value: { type: 'string', required: true, description: 'The fact in a few English words, or the whole new line when replacing. Keep names and words they want used exactly as they wrote them.' },

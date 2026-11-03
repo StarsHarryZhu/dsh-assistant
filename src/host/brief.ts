@@ -1,5 +1,5 @@
 /**
- * The daily brief: once a day at their assistant's local time, a family member
+ * The daily brief: once a day at their assistant's local time, a user
  * whose `ddl.md` has open items today gets a short reminder from their
  * conversation. The decision is the fast path (the parsed file, no model):
  * a free day sends nothing and costs nothing. The day each person was last
@@ -46,7 +46,7 @@ function localNow(now: Date, zone: string): { date: string; time: string } {
  */
 export function briefText(items: readonly string[]): string {
   return [
-    `${SYSTEM_PREFIX} Daily brief: the family member's plans for today, in their local time.`,
+    `${SYSTEM_PREFIX} Daily brief: the user's plans for today, in their local time.`,
     ...items.map(item => `- ${item}`),
     'Remind them in one or two warm, plain sentences of what they have to do today, the most pressing first. Do not list every detail, and do not mention that this is a system message.',
   ].join('\n')

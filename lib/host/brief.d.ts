@@ -1,5 +1,5 @@
 /**
- * The daily brief: once a day at their assistant's local time, a family member
+ * The daily brief: once a day at their assistant's local time, a user
  * whose `ddl.md` has open items today gets a short reminder from their
  * conversation. The decision is the fast path (the parsed file, no model):
  * a free day sends nothing and costs nothing. The day each person was last
