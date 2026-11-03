@@ -104,6 +104,12 @@ export interface UiWorkspaceLike {
   openSession(sessionId: string): void
 }
 
+/** `ctx.pluginNavigation` of `@deepseek-ai/dsh-client-ui-plugin-manager`. */
+export interface PluginNavigationLike {
+  /** Open the Plugins panel on one package's detail page, which holds its settings. */
+  openBundle(packageName: string): void
+}
+
 /** The client context services the browser half uses. */
 export interface ClientContextLike {
   get?(name: string): unknown

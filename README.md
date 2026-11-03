@@ -6,12 +6,16 @@ A general-purpose chat agent for [DeepSeek Harness](https://github.com/deepseek-
 
 The parent is the conversation: it plans, delegates, and approves. Workers do the work in the background. The design explores a more autonomous agent pattern, where the parent manages worker context, model and reasoning effort, workspace, and permission approval instead of the user operating every tool. Single-window self-management of the parent — its own context, model, and long-running work in one conversation — will be added progressively in later versions.
 
+## Requirements
+
+**DeepSeek Harness Desktop `>=0.2.1-rc.5 <0.3.0`.** Only the Desktop app is supported; the web app and other hosts are not.
+
 ## Install
 
-Install `@starsharryzhu/dsh-assistant` from the Plugins page of DSH Desktop or the web app, or from the command line:
+Install `@starsharryzhu/dsh-assistant` from the Plugins page of DSH Desktop, or from the command line:
 
 ```bash
-dsh plugin --profile <profile> add @starsharryzhu/dsh-assistant
+dsh plugin --profile desktop add @starsharryzhu/dsh-assistant
 ```
 
 The two sub-plugins `@starsharryzhu/complete-subagent` and `@starsharryzhu/im-robot` are installed with it.
@@ -40,7 +44,7 @@ Two hidden agent presets, one visible conversation:
 ## Settings
 
 - **Plugins page** (shared by every assistant): worker models, compaction ratio, balance threshold and check interval, reminder wording, persona and profile limits.
-- **Each assistant's Settings tab**: name and form of address, reminder lead time, daily brief time, watchdog timeout, WeChat switch and message length.
+- **Each assistant's Settings tab**: name and form of address, reminder lead time, daily brief time, watchdog timeout, WeChat switch and message length. Its **Shared settings** button opens the Plugins page settings.
 
 Numbers can be cleared and retyped; values are corrected when the field is left.
 
@@ -65,7 +69,7 @@ Next: single-window self-management for the parent agent — its own context, mo
 - Only tools are isolated; global prompt contexts injected by other plugins are not filtered.
 - WeChat is text only; images and files are not supported yet.
 - Workers cannot modify anything outside their workspace; on DSH 0.2.1-rc.5 an approved path only reaches the write/edit tools, not shell commands.
-- Requires DSH 0.2.1-rc.5 or newer. Verified on macOS against the 0.2.2-alpha.2 and 0.2.1-rc.5 hosts, not yet the Desktop app end to end.
+- Verified on macOS with Desktop 0.2.1-rc.5; other systems are untested.
 
 ## Development
 

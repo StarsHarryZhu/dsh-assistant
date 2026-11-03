@@ -528,6 +528,30 @@ describe('the browser half', () => {
     ]))
   })
 
+  it('opens the shared settings from an assistant\'s settings tab, between saving and deleting', () => {
+    const opened: string[] = []
+    const { form } = fakeForm({ people: [{ id: 'mom', name: '阿福', cwd: '/w', sessionId: 's-mom' }] })
+    const fake = fakeSessions()
+    const { find } = loadClient(form, { sessions: fake.sessions, pluginNavigation: { openBundle: (name: string) => { opened.push(name) } } })
+    fake.show('s-mom')
+    const View = find('conversation.view', 'dsh-assisstant-settings')
+    render(<View sessionId="s-mom" />)
+    const buttons = screen.getAllByRole('button').map(button => button.textContent)
+    expect(buttons.slice(buttons.indexOf('保存'), buttons.indexOf('保存') + 3)).toEqual(['保存', '通用设置', '删除这个助理'])
+    fireEvent.click(screen.getByText('通用设置'))
+    expect(opened).toEqual(['@starsharryzhu/dsh-assistant'])
+  })
+
+  it('leaves the shared settings button out on a host without plugin navigation', () => {
+    const { form } = fakeForm({ people: [{ id: 'mom', name: '阿福', cwd: '/w', sessionId: 's-mom' }] })
+    const fake = fakeSessions()
+    const { find } = loadClient(form, { sessions: fake.sessions })
+    fake.show('s-mom')
+    const View = find('conversation.view', 'dsh-assisstant-settings')
+    render(<View sessionId="s-mom" />)
+    expect(screen.queryByText('通用设置')).toBeNull()
+  })
+
   it('corrects a daily brief time and keeps empty as off', () => {
     const { form } = fakeForm({ people: [{ id: 'mom', name: '阿福', cwd: '/w', sessionId: 's-mom' }] })
     const fake = fakeSessions()

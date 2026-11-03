@@ -66,9 +66,12 @@ describe('the bundle patch', () => {
 describe('the manifest', () => {
   it('pins the identity, the engine range, and the entries', () => {
     expect(manifest.name).toBe('@starsharryzhu/dsh-assistant')
-    expect(manifest.version).toBe('0.1.1')
+    expect(manifest.version).toBe('0.1.2')
     expect(manifest.license).toBe('MIT')
     expect(manifest.engines.dsh).toBe('>=0.2.1-rc.5 <0.3.0-0')
+    const hostRanges = Object.values({ ...manifest.devDependencies, ...manifest.peerDependencies } as Record<string, string>).filter(range => range.includes('0.2.'))
+    expect(new Set(hostRanges)).toEqual(new Set(['>=0.2.1-rc.5 <0.3.0-0']))
+    expect(manifest.description).toContain('Requires DeepSeek Harness Desktop >=0.2.1-rc.5 <0.3.0')
     expect(Object.keys(manifest.exports)).toEqual(expect.arrayContaining(['.', './bundle', './policy', './compactor', './client']))
     expect(manifest.dsh.bundle.patch).toBe('./cordis.patch.yml')
     expect(manifest.dsh.client.platform).toBe('web')

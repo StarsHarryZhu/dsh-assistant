@@ -28,6 +28,7 @@ import type {
   LayoutLike,
   LocaleLike,
   ModelDirectoriesLike,
+  PluginNavigationLike,
   RemoteSessionLike,
   SessionsLike,
   SlotsLike,
@@ -186,7 +187,15 @@ export function apply(ctx: ClientContextLike): void {
       })
 
       const ImView = createImView({ form, directories: () => directories })
-      const SettingsView = createAssistantSettings({ form, workspace, openPage })
+      const SettingsView = createAssistantSettings({
+        form,
+        workspace,
+        openPage,
+        sharedSettings: () => {
+          const navigation = ctx.get?.('pluginNavigation') as PluginNavigationLike | undefined
+          return navigation === undefined ? undefined : () => { navigation.openBundle(PACKAGE_NAME) }
+        },
+      })
       const Switcher = createSwitcher({ form, workspace, createAssistant: () => { createRequested = true; openPage() } })
       const registerViews = (): (() => void) => {
         const disposeViews = scopedSlots.inject('conversation.view', () => {

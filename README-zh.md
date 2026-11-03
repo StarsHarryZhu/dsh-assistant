@@ -6,12 +6,16 @@
 
 母 agent 负责对话：规划、派活、审批；worker 在后台干活。它尝试一种更自主的新式 agent 范式——由母 agent 管理 worker 的上下文、模型与推理强度、工作区和权限确认，而不是让用户逐个操作工具。单窗口的母 agent 自管理（在同一个对话里管理自己的上下文、模型和长任务）会在未来版本中逐步实现。
 
+## 版本要求
+
+**DeepSeek Harness 桌面版 `>=0.2.1-rc.5 <0.3.0`。** 只支持桌面版，不支持网页版和其他宿主。
+
 ## 安装
 
-在 DSH 桌面端或网页版的插件页安装 `@starsharryzhu/dsh-assistant`，或者在命令行：
+在 DSH 桌面版的插件页安装 `@starsharryzhu/dsh-assistant`，或者在命令行：
 
 ```bash
-dsh plugin --profile <profile> add @starsharryzhu/dsh-assistant
+dsh plugin --profile desktop add @starsharryzhu/dsh-assistant
 ```
 
 两个子插件 `@starsharryzhu/complete-subagent` 和 `@starsharryzhu/im-robot` 会作为依赖一起装好。
@@ -34,7 +38,7 @@ dsh plugin --profile <profile> add @starsharryzhu/dsh-assistant
 - 记录都是工作区里的普通文件：日程（`ddl.md`）、清单、备忘、流水、画像、人设、项目。不记密码、银行卡号和证件号。
 - 日程、提醒、每日简报、看门狗、`/ddl` 周视图。
 - DeepSeek 账户余额提醒，话术可改。
-- 微信：通过 `im-robot` 扫码绑定，之后微信和网页进同一段对话；只收发文字，按句子切成短消息。
+- 微信：通过 `im-robot` 扫码绑定，之后微信和桌面版进同一段对话；只收发文字，按句子切成短消息。
 - 工具双向隔离。
 
 ## 设置
@@ -65,7 +69,7 @@ dsh plugin --profile <profile> add @starsharryzhu/dsh-assistant
 - 只隔离工具，其他插件注入的全局提示词上下文没有过滤。
 - 微信只收发文字；图片和文件还不支持。
 - worker 改不了工作区外的文件；在 DSH 0.2.1-rc.5 上，批准的路径只能用写文件和编辑工具改，shell 命令不行。
-- 需要 DSH 0.2.1-rc.5 或更新；在 macOS 上验证过 0.2.2-alpha.2 和 0.2.1-rc.5 的宿主，桌面版应用端到端还没实测。
+- 在 macOS 上的桌面版 0.2.1-rc.5 验证过；其他系统还没测。
 
 ## 开发
 

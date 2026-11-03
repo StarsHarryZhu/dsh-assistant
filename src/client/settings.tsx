@@ -185,6 +185,8 @@ export interface AssistantSettingsDeps {
   workspace(): UiWorkspaceLike | undefined
   /** Leave a deleted assistant's conversation for the next assistant or the form. */
   openPage(): void
+  /** Open the settings every assistant shares, when the host can. */
+  sharedSettings(): (() => void) | undefined
 }
 
 /** Build the `conversation.view` component of the settings tab. */
@@ -210,6 +212,7 @@ function AssistantPage(props: { view: AssistantsView; person: Person; deps: Assi
   const [draft, setDraft] = useState(stored)
   const [status, setStatus] = useState<SaveStatus>('idle')
   const [confirming, setConfirming] = useState(false)
+  const openShared = deps.sharedSettings()
   useEffect(() => { setDraft(stored) }, [storedKey])
   const set = (key: string, value: Value): void => {
     setStatus('idle')
@@ -259,6 +262,11 @@ function AssistantPage(props: { view: AssistantsView; person: Person; deps: Assi
         </section>
       ))}
       <SaveRow disabled={JSON.stringify(draft) === storedKey || String(draft.name).trim() === '' || !view.writable} status={status} onSave={() => { void save() }} t={t} />
+      {openShared !== undefined && (
+        <div className="dsa-row">
+          <button type="button" className="dsa-button" onClick={openShared}>{t('settings.shared')}</button>
+        </div>
+      )}
       {confirming
         ? (
           <div className="dsa-row dsa-confirm">
