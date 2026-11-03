@@ -9,7 +9,7 @@ const ROOT = join(import.meta.dirname, '..')
 const DOCUMENTED_PREFIXES = ['src', 'tests', 'scripts', 'locale']
 
 /** Directories that exist only to hold generated or vendored files. */
-const SKIPPED = new Set(['node_modules', 'lib', '.client-build', '.git', '.claude'])
+const SKIPPED = new Set(['node_modules', 'lib', '.client-build', '.git', '.claude', '.github'])
 
 /** The four sections every file must carry, in this order. */
 const SECTIONS = ['## 1. Role', '## 2. Constraints', '## 3. Contents', '## 4. Progress']

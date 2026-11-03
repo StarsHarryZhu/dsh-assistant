@@ -1,5 +1,5 @@
 {
-  "name": "dsh-assisstant",
+  "name": "@starsharryzhu/dsh-assistant",
   "version": "0.1.0",
   "description": "Assistant for DeepSeek Harness: a left-sidebar row that opens an assistant's long-running conversation on a hidden agent preset, with a workspace per assistant, automatic compaction, a balance reminder, a self-correcting persona, a schedule, and WeChat through the im-robot sub-plugin.",
   "keywords": [
@@ -42,7 +42,8 @@
     "locale/*.json",
     "README.md",
     "AGENTS.md",
-    "THIRD_PARTY_NOTICES.md"
+    "THIRD_PARTY_NOTICES.md",
+    "LICENSE"
   ],
   "scripts": {
     "link-dev": "node scripts/link-dev.mjs",
@@ -51,8 +52,8 @@
     "test": "node build.js && node node_modules/vitest/vitest.mjs run"
   },
   "dependencies": {
-    "complete-subagent": "0.1.0",
-    "im-robot": "0.1.0"
+    "@starsharryzhu/complete-subagent": "0.1.0",
+    "@starsharryzhu/im-robot": "0.1.0"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
@@ -98,6 +99,18 @@
   "engines": {
     "node": "^22.19.0 || >=24.0.0",
     "dsh": ">=0.2.1-rc.5 <0.3.0-0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "latest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/StarsHarryZhu/dsh-assisstant.git"
+  },
+  "homepage": "https://github.com/StarsHarryZhu/dsh-assisstant#readme",
+  "bugs": {
+    "url": "https://github.com/StarsHarryZhu/dsh-assisstant/issues"
   },
   "license": "MIT"
 }

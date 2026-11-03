@@ -6,7 +6,14 @@
  * anything and keeps only well-formed entries.
  * @module dsh-assisstant/shared/settings
  */
-/** Package name: the settings namespace, the client module id, and the Plugins page key. */
+/** The npm package name: the browser bundle's registration id and the Plugins page key for this bundle. */
+export declare const PACKAGE_NAME = "@starsharryzhu/dsh-assistant";
+/**
+ * This plugin's internal id: the settings namespace (the profile row's id),
+ * the browser half's locale key, and its data folder. It keeps the package's
+ * original spelling so settings, presets, and data written by earlier local
+ * installs stay where they are after the package was renamed.
+ */
 export declare const PLUGIN_ID = "dsh-assisstant";
 /** The hidden router preset: each family member's own conversation. */
 export declare const PRESET_ID = "dsh-assisstant";
@@ -16,10 +23,10 @@ export declare const WORKER_PRESET_ID = "dsh-assisstant-worker";
 export declare const PANEL_ID = "dsh-assisstant";
 /** Default values of the settings every assistant shares (the Plugins page). */
 export declare const DEFAULTS: {
-    readonly compactRatio: 0.75;
+    readonly compactRatio: 0.5;
     readonly balanceThreshold: 10;
-    readonly balanceCheckMinutes: 30;
-    readonly balanceReminder: "温馨提示：账户余额只剩 {balance} 元了（低于 {threshold} 元），请找家里负责的人充值，以免助理停止工作。";
+    readonly balanceCheckMinutes: 120;
+    readonly balanceReminder: "温馨提示：账户余额只剩 {balance} 元了（低于 {threshold} 元）。";
     readonly personaSelfCorrect: true;
     readonly personaCooldownHours: 24;
     readonly personaMaxChars: 2000;
@@ -65,6 +72,8 @@ export declare const COMPACT_RATIO_RANGE: {
     readonly min: 0.3;
     readonly max: 0.85;
 };
+/** The longest balance check interval: a week, well below what a timer can hold. */
+export declare const MAX_BALANCE_CHECK_MINUTES = 10080;
 /**
  * One assistant: the family member it serves sets it up on the page with a
  * name, what it should call them, and a workspace folder holding its one

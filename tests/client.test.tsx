@@ -119,7 +119,7 @@ describe('the browser half', () => {
   it('registers the assistant page, its sidebar row, and the settings page', () => {
     const { registrations } = loadClient(fakeForm({}).form)
     expect(registrations.filter(entry => entry.name !== 'tool.call.toolview').map(entry => `${String(entry.name)}:${String(entry.key ?? entry.id)}`).sort()).toEqual([
-      'main:dsh-assisstant', 'plugins.bundle.config:dsh-assisstant', 'sidebar.panellist:dsh-assisstant',
+      'main:dsh-assisstant', 'plugins.bundle.config:@starsharryzhu/dsh-assistant', 'sidebar.panellist:dsh-assisstant',
     ])
   })
 
@@ -473,10 +473,83 @@ describe('the browser half', () => {
     expect(screen.getByText('没有改成，请再试一次。')).toBeTruthy()
   })
 
+  it('lets a number be emptied and retyped, and corrects it when the field is left', async () => {
+    const { form, mutations } = fakeForm({ compactRatio: 0.75, balanceCheckMinutes: 30, balanceThreshold: 10 })
+    const { find } = loadClient(form)
+    const Settings = find('plugins.bundle.config', '@starsharryzhu/dsh-assistant')
+    render(<div><Settings view="page" /></div>)
+    const minutes = screen.getByLabelText('每隔几分钟查一次余额') as HTMLInputElement
+    fireEvent.focus(minutes)
+    fireEvent.change(minutes, { target: { value: '' } })
+    expect(minutes.value).toBe('')
+    fireEvent.change(minutes, { target: { value: '4' } })
+    expect(minutes.value).toBe('4')
+    fireEvent.change(minutes, { target: { value: '45' } })
+    expect(minutes.value).toBe('45')
+    fireEvent.blur(minutes)
+    expect(minutes.value).toBe('45')
+
+    fireEvent.focus(minutes)
+    fireEvent.change(minutes, { target: { value: '' } })
+    fireEvent.blur(minutes)
+    expect(minutes.value).toBe('45')
+
+    fireEvent.focus(minutes)
+    fireEvent.change(minutes, { target: { value: '999999' } })
+    fireEvent.blur(minutes)
+    expect(minutes.value).toBe('10080')
+
+    fireEvent.focus(minutes)
+    fireEvent.change(minutes, { target: { value: '2.6' } })
+    fireEvent.keyDown(minutes, { key: 'Enter' })
+    fireEvent.blur(minutes)
+    expect(minutes.value).toBe('3')
+
+    const ratio = screen.getByLabelText('上下文达到多少时自动整理（%）') as HTMLInputElement
+    fireEvent.focus(ratio)
+    fireEvent.change(ratio, { target: { value: '5' } })
+    expect(ratio.value).toBe('5')
+    fireEvent.blur(ratio)
+    expect(ratio.value).toBe('30')
+
+    const threshold = screen.getByLabelText('余额低于多少元时提醒') as HTMLInputElement
+    fireEvent.focus(threshold)
+    fireEvent.change(threshold, { target: { value: '9.5' } })
+    fireEvent.blur(threshold)
+    expect(threshold.value).toBe('9.5')
+
+    // Typing a value and going straight to save stores the corrected value.
+    fireEvent.focus(minutes)
+    fireEvent.change(minutes, { target: { value: '0' } })
+    await act(async () => { fireEvent.click(screen.getByText('保存')) })
+    expect(mutations.at(-1)?.ops).toEqual(expect.arrayContaining([
+      { op: 'set', path: ['balanceCheckMinutes'], value: 1 },
+      { op: 'set', path: ['compactRatio'], value: 0.3 },
+      { op: 'set', path: ['balanceThreshold'], value: 9.5 },
+    ]))
+  })
+
+  it('corrects a daily brief time and keeps empty as off', () => {
+    const { form } = fakeForm({ people: [{ id: 'mom', name: '阿福', cwd: '/w', sessionId: 's-mom' }] })
+    const fake = fakeSessions()
+    const { find } = loadClient(form, { sessions: fake.sessions })
+    fake.show('s-mom')
+    const View = find('conversation.view', 'dsh-assisstant-settings')
+    render(<View sessionId="s-mom" />)
+    const time = screen.getByLabelText('每日提醒时间（如 08:00，留空关闭）') as HTMLInputElement
+    for (const [typed, shown] of [['8', '08:00'], ['7:30', '07:30'], ['0915', '09:15'], ['25:00', '09:15'], ['早上', '09:15'], ['', '']] as const) {
+      fireEvent.focus(time)
+      fireEvent.change(time, { target: { value: typed } })
+      expect(time.value).toBe(typed)
+      fireEvent.blur(time)
+      expect(time.value).toBe(shown)
+    }
+  })
+
   it('draws the settings summary', () => {
     const { form } = fakeForm({ compactRatio: 0.75 })
     const { find } = loadClient(form)
-    const Settings = find('plugins.bundle.config', 'dsh-assisstant')
+    const Settings = find('plugins.bundle.config', '@starsharryzhu/dsh-assistant')
     render(<div><Settings view="summary" /></div>)
     expect(screen.getByText('上下文达到 75% 自动整理')).toBeTruthy()
   })
@@ -484,7 +557,7 @@ describe('the browser half', () => {
   it('keeps only the shared settings on the Plugins screen', () => {
     const { form } = fakeForm({ people: [] })
     const { find } = loadClient(form)
-    const Settings = find('plugins.bundle.config', 'dsh-assisstant')
+    const Settings = find('plugins.bundle.config', '@starsharryzhu/dsh-assistant')
     render(<div><Settings view="page" /></div>)
     for (const title of ['模型', '自动整理对话', '余额提醒', '人设与画像']) expect(screen.getByText(title)).toBeTruthy()
     for (const title of ['工作区', '日程与主动提醒', '看门狗', '微信', '对话用的模型']) expect(screen.queryByText(title)).toBeNull()
@@ -495,7 +568,7 @@ describe('the browser half', () => {
     const catalog = { groups: [{ id: 'deepseek-account', name: 'DeepSeek', models: [{ id: 'deepseek-flash', name: 'Flash' }, { id: 'deepseek-pro', name: 'Pro' }] }] }
     const remote = { session: { modelCatalog: async () => ({ ok: true, value: catalog }) } }
     const { find } = loadClient(form, { remote, 'remote.session': remote.session })
-    const Settings = find('plugins.bundle.config', 'dsh-assisstant')
+    const Settings = find('plugins.bundle.config', '@starsharryzhu/dsh-assistant')
     render(<div><Settings view="page" /></div>)
     await screen.findByText('Flash')
     expect(screen.getByText('worker模型选择')).toBeTruthy()

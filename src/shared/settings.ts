@@ -7,7 +7,15 @@
  * @module dsh-assisstant/shared/settings
  */
 
-/** Package name: the settings namespace, the client module id, and the Plugins page key. */
+/** The npm package name: the browser bundle's registration id and the Plugins page key for this bundle. */
+export const PACKAGE_NAME = '@starsharryzhu/dsh-assistant'
+
+/**
+ * This plugin's internal id: the settings namespace (the profile row's id),
+ * the browser half's locale key, and its data folder. It keeps the package's
+ * original spelling so settings, presets, and data written by earlier local
+ * installs stay where they are after the package was renamed.
+ */
 export const PLUGIN_ID = 'dsh-assisstant'
 
 /** The hidden router preset: each family member's own conversation. */
@@ -21,10 +29,10 @@ export const PANEL_ID = 'dsh-assisstant'
 
 /** Default values of the settings every assistant shares (the Plugins page). */
 export const DEFAULTS = {
-  compactRatio: 0.75,
+  compactRatio: 0.5,
   balanceThreshold: 10,
-  balanceCheckMinutes: 30,
-  balanceReminder: '温馨提示：账户余额只剩 {balance} 元了（低于 {threshold} 元），请找家里负责的人充值，以免助理停止工作。',
+  balanceCheckMinutes: 120,
+  balanceReminder: '温馨提示：账户余额只剩 {balance} 元了（低于 {threshold} 元）。',
   personaSelfCorrect: true,
   personaCooldownHours: 24,
   personaMaxChars: 2000,
@@ -76,6 +84,9 @@ export const MIN_WATCHDOG_MINUTES = 2
 
 /** Bounds of the compaction ratio setting. */
 export const COMPACT_RATIO_RANGE = { min: 0.3, max: 0.85 } as const
+
+/** The longest balance check interval: a week, well below what a timer can hold. */
+export const MAX_BALANCE_CHECK_MINUTES = 10_080
 
 /**
  * One assistant: the family member it serves sets it up on the page with a

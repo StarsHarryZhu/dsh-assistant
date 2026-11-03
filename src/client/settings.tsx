@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useState, type ReactNode } from 'react'
-import { ASSISTANT_DEFAULTS, COMPACT_RATIO_RANGE, DEFAULTS, MIN_WATCHDOG_MINUTES, MIN_WECHAT_REPLY_CHARS, assistantSettings, readWorkerModels } from '../shared/settings.ts'
+import { ASSISTANT_DEFAULTS, COMPACT_RATIO_RANGE, DEFAULTS, MAX_BALANCE_CHECK_MINUTES, MIN_WATCHDOG_MINUTES, MIN_WECHAT_REPLY_CHARS, assistantSettings, readWorkerModels } from '../shared/settings.ts'
 import type { AssistantSettings, Person, WorkerModel } from '../shared/settings.ts'
 import { assistantsView, removePerson, updateAssistant, useForm } from './assistants.ts'
 import type { AssistantsView } from './assistants.ts'
@@ -17,7 +17,7 @@ import { fallbackT } from './locales.ts'
 import { Dropdown } from './menu.tsx'
 
 /** How one field is edited. */
-type FieldKind = 'text' | 'textarea' | 'number' | 'percent' | 'boolean'
+type FieldKind = 'text' | 'textarea' | 'number' | 'percent' | 'boolean' | 'time'
 
 /** One editable setting. */
 interface Field {
@@ -26,13 +26,15 @@ interface Field {
   readonly group: string
   readonly min?: number
   readonly max?: number
+  /** A number that may have decimals; the others are whole numbers, as the host's schema requires. */
+  readonly decimal?: boolean
 }
 
 /** The settings every assistant shares, in display order. The worker models have their own picker. */
 export const FIELDS: readonly Field[] = [
   { key: 'compactRatio', kind: 'percent', group: 'compact', min: COMPACT_RATIO_RANGE.min * 100, max: COMPACT_RATIO_RANGE.max * 100 },
-  { key: 'balanceThreshold', kind: 'number', group: 'balance', min: 0 },
-  { key: 'balanceCheckMinutes', kind: 'number', group: 'balance', min: 1 },
+  { key: 'balanceThreshold', kind: 'number', group: 'balance', min: 0, decimal: true },
+  { key: 'balanceCheckMinutes', kind: 'number', group: 'balance', min: 1, max: MAX_BALANCE_CHECK_MINUTES },
   { key: 'balanceReminder', kind: 'textarea', group: 'balance' },
   { key: 'personaSelfCorrect', kind: 'boolean', group: 'persona' },
   { key: 'personaCooldownHours', kind: 'number', group: 'persona', min: 0 },
@@ -45,7 +47,7 @@ const GROUPS = ['model', 'compact', 'balance', 'persona']
 /** The settings each assistant has for itself, in display order. */
 export const ASSISTANT_FIELDS: readonly Field[] = [
   { key: 'reminderLeadMinutes', kind: 'number', group: 'schedule', min: 0 },
-  { key: 'dailyBriefTime', kind: 'text', group: 'schedule' },
+  { key: 'dailyBriefTime', kind: 'time', group: 'schedule' },
   { key: 'watchdogStallMinutes', kind: 'number', group: 'watchdog', min: MIN_WATCHDOG_MINUTES },
   { key: 'wechatEnabled', kind: 'boolean', group: 'wechat' },
   { key: 'wechatReplyMaxChars', kind: 'number', group: 'wechat', min: MIN_WECHAT_REPLY_CHARS },
@@ -322,6 +324,64 @@ function WorkerModels(props: {
   )
 }
 
+/** @returns what a typed number becomes: nothing readable keeps the fallback, a whole-number field rounds, and anything out of range goes to the nearest bound. */
+function correctedNumber(text: string, field: Field, fallback: string): string {
+  const number = Number(text)
+  if (text.trim() === '' || !Number.isFinite(number)) return fallback
+  const rounded = field.decimal === true ? number : Math.round(number)
+  return String(Math.min(field.max ?? Infinity, Math.max(field.min ?? -Infinity, rounded)))
+}
+
+/** @returns what a typed clock time becomes: empty stays empty (no brief), 8, 8:00, and 0800 read as 08:00, and anything else keeps the fallback. */
+function correctedTime(text: string, fallback: string): string {
+  const trimmed = text.trim()
+  if (trimmed === '') return ''
+  const match = /^(\d{1,2})(?:[:：.]?(\d{2}))?$/u.exec(trimmed)
+  const hour = Number(match?.[1])
+  const minute = Number(match?.[2] ?? 0)
+  if (match === null || hour > 23 || minute > 59) return fallback
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+}
+
+/**
+ * An input that shows what is typed, an empty box included, and corrects it
+ * when the field is left. The draft already holds the corrected value while
+ * typing, so the save button is right even before the field is left.
+ */
+function CorrectedInput(props: {
+  label: string
+  value: string
+  type: 'number' | 'text'
+  min?: number | undefined
+  max?: number | undefined
+  correct: (text: string, fallback: string) => string
+  onChange: (value: string) => void
+}): ReactNode {
+  const [text, setText] = useState(props.value)
+  const [before, setBefore] = useState<string | undefined>()
+  useEffect(() => { if (before === undefined) setText(props.value) }, [props.value, before])
+  const fallback = before ?? props.value
+  const finish = (): void => {
+    const corrected = props.correct(text, fallback)
+    setBefore(undefined)
+    setText(corrected)
+    props.onChange(corrected)
+  }
+  return (
+    <label className="dsa-field">
+      <span>{props.label}</span>
+      <input className="dsa-text" type={props.type} min={props.min} max={props.max} value={text}
+        onFocus={() => { setBefore(props.value) }}
+        onChange={(event) => {
+          setText(event.target.value)
+          props.onChange(props.correct(event.target.value, fallback))
+        }}
+        onBlur={finish}
+        onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }} />
+    </label>
+  )
+}
+
 function FieldInput(props: { field: Field; value: Value; label: string; onChange: (value: Value) => void }): ReactNode {
   const { field, value } = props
   if (field.kind === 'boolean') {
@@ -348,17 +408,14 @@ function FieldInput(props: { field: Field; value: Value; label: string; onChange
       </label>
     )
   }
+  if (field.kind === 'time') {
+    return <CorrectedInput label={props.label} type="text" value={String(value)} correct={correctedTime} onChange={props.onChange} />
+  }
   const percent = field.kind === 'percent'
-  const shown = percent ? Math.round(Number(value) * 100) : Number(value)
   return (
-    <label className="dsa-field">
-      <span>{props.label}</span>
-      <input className="dsa-text" type="number" min={field.min} max={field.max} value={shown} onChange={(event) => {
-        const number = Number(event.target.value)
-        if (!Number.isFinite(number)) return
-        const bounded = Math.min(field.max ?? Infinity, Math.max(field.min ?? -Infinity, number))
-        props.onChange(percent ? bounded / 100 : bounded)
-      }} />
-    </label>
+    <CorrectedInput label={props.label} type="number" min={field.min} max={field.max}
+      value={String(percent ? Math.round(Number(value) * 100) : Number(value))}
+      correct={(text, fallback) => correctedNumber(text, field, fallback)}
+      onChange={(text) => { props.onChange(percent ? Number(text) / 100 : Number(text)) }} />
   )
 }

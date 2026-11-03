@@ -1,4 +1,4 @@
-# dsh-assisstant bundle patch layer (package.json#dsh.bundle.patch).
+# @starsharryzhu/dsh-assistant bundle patch layer (package.json#dsh.bundle.patch).
 #
 # Four rows:
 # 1. The settings row, top level because the settings page edits only
@@ -25,20 +25,20 @@
 #    the next step.
 - insert:
     - id: dsh-assisstant
-      name: dsh-assisstant
+      name: '@starsharryzhu/dsh-assistant'
     - id: dsh-assisstant-subplugins
-      name: dsh-assisstant/bundle
+      name: '@starsharryzhu/dsh-assistant/bundle'
       group: true
       config:
         - id: dsh-assisstant-complete-subagent
-          name: complete-subagent
+          name: '@starsharryzhu/complete-subagent'
           config:
             presets: [dsh-assisstant, dsh-assisstant-worker]
             childPreset: dsh-assisstant-worker
             ownModel: false
           disabled: !!js "[...loader.entries()].some(e => e.options.id === 'complete-subagent' && !e.options.disabled)"
         - id: dsh-assisstant-im-robot
-          name: im-robot
+          name: '@starsharryzhu/im-robot'
           config:
             presets: [dsh-assisstant]
           disabled: !!js "[...loader.entries()].some(e => e.options.id === 'im-robot' && !e.options.disabled)"
@@ -85,9 +85,9 @@
                   headChars: 4096
                   tailChars: 1024
               - id: dsh-assisstant-compactor
-                name: dsh-assisstant/compactor
+                name: '@starsharryzhu/dsh-assistant/compactor'
           - id: dsh-assisstant-policy
-            name: dsh-assisstant/policy
+            name: '@starsharryzhu/dsh-assistant/policy'
             config:
               role: router
     - id: preset-dsh-assisstant-worker
@@ -149,6 +149,6 @@
               fetch: true
               searchTimeoutMs: 60000
           - id: dsh-assisstant-worker-policy
-            name: dsh-assisstant/policy
+            name: '@starsharryzhu/dsh-assistant/policy'
             config:
               role: worker

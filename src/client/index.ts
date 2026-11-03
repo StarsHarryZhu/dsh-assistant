@@ -20,7 +20,7 @@
  */
 
 import { RECORD_TOOLS } from '../shared/record-tools.ts'
-import { PANEL_ID, PLUGIN_ID, readPeople } from '../shared/settings.ts'
+import { PACKAGE_NAME, PANEL_ID, PLUGIN_ID, readPeople } from '../shared/settings.ts'
 import type {
   ClientContextLike,
   ConfigFormLike,
@@ -45,7 +45,7 @@ import css from './styles.css'
 
 declare const require: (request: string) => unknown
 
-export const name = PLUGIN_ID
+export const name = PACKAGE_NAME
 export const inject = ['slots', 'locale']
 
 /** Root attribute present while the conversation view shows an assistant conversation. */
@@ -117,14 +117,14 @@ export function apply(ctx: ClientContextLike): void {
   let session: RemoteSessionLike | undefined
 
   guard('dictionaries', () => {
-    if (locale !== undefined) ctx.effect?.(() => locale.register(PLUGIN_ID, { zh, en }), `${PLUGIN_ID}: dictionaries`)
+    if (locale !== undefined) ctx.effect?.(() => locale.register(PACKAGE_NAME, { zh, en }), `${PACKAGE_NAME}: dictionaries`)
   })
   guard('styles', () => {
     ctx.effect?.(() => mountStyles(css), `${PLUGIN_ID}: styles`)
   })
   guard('record rows', () => {
     slots.inject('tool.call.toolview', () => {
-      const disposers = RECORD_TOOLS.map(key => slots.register({ name: 'tool.call.toolview', key, locale: PLUGIN_ID }, RecordRow))
+      const disposers = RECORD_TOOLS.map(key => slots.register({ name: 'tool.call.toolview', key, locale: PACKAGE_NAME }, RecordRow))
       return () => { for (const dispose of disposers) dispose() }
     })
   })
@@ -151,7 +151,7 @@ export function apply(ctx: ClientContextLike): void {
       const form = forms.get(PLUGIN_ID)
       const Settings = createSettings(form, () => session)
       scopedSlots.inject('plugins.bundle.config', () => scopedSlots.register(
-        { name: 'plugins.bundle.config', key: PLUGIN_ID, locale: PLUGIN_ID },
+        { name: 'plugins.bundle.config', key: PACKAGE_NAME, locale: PACKAGE_NAME },
         Settings,
       ))
       const workspace = (): UiWorkspaceLike | undefined => ctx.get?.('uiWorkspace') as UiWorkspaceLike | undefined
@@ -174,9 +174,9 @@ export function apply(ctx: ClientContextLike): void {
       })
       // Nested as dsh-mnemon does: the icon exists only while the page does.
       scopedSlots.inject('main', () => {
-        const disposePage = scopedSlots.register({ name: 'main', key: PANEL_ID, locale: PLUGIN_ID }, MainPage)
+        const disposePage = scopedSlots.register({ name: 'main', key: PANEL_ID, locale: PACKAGE_NAME }, MainPage)
         const disposeIcon = scopedSlots.inject('sidebar.panellist', () => scopedSlots.register(
-          { name: 'sidebar.panellist', id: PANEL_ID, order: 2, locale: PLUGIN_ID, label: () => fallbackT('panel') },
+          { name: 'sidebar.panellist', id: PANEL_ID, order: 2, locale: PACKAGE_NAME, label: () => fallbackT('panel') },
           HouseIcon,
         ))
         return () => {
@@ -194,7 +194,7 @@ export function apply(ctx: ClientContextLike): void {
             name: 'conversation.view',
             id: VIEW_IDS.im,
             order: VIEW_ORDER.im,
-            locale: PLUGIN_ID,
+            locale: PACKAGE_NAME,
             label: () => fallbackT('view.im'),
             inject: (sessionId: string) => ({ sessionId }),
           }, ImView)
@@ -202,7 +202,7 @@ export function apply(ctx: ClientContextLike): void {
             name: 'conversation.view',
             id: VIEW_IDS.settings,
             order: VIEW_ORDER.settings,
-            locale: PLUGIN_ID,
+            locale: PACKAGE_NAME,
             label: () => fallbackT('view.settings'),
             inject: (sessionId: string) => ({ sessionId }),
           }, SettingsView)
@@ -212,7 +212,7 @@ export function apply(ctx: ClientContextLike): void {
           name: 'conversation.session.header.actions',
           id: SWITCHER.id,
           order: SWITCHER.order,
-          locale: PLUGIN_ID,
+          locale: PACKAGE_NAME,
           inject: (sessionId: string) => ({ sessionId }),
         }, Switcher))
         return () => {
@@ -264,8 +264,8 @@ function guard(label: string, run: () => void): void {
 function mountStyles(text: string): () => void {
   if (typeof document === 'undefined') return () => undefined
   const style = document.createElement('style')
-  style.setAttribute('data-plugin', PLUGIN_ID)
-  style.setAttribute('data-plugin-css', `${PLUGIN_ID}/styles.css`)
+  style.setAttribute('data-plugin', PACKAGE_NAME)
+  style.setAttribute('data-plugin-css', `${PACKAGE_NAME}/styles.css`)
   style.textContent = text
   document.head.appendChild(style)
   return () => { style.remove() }

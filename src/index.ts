@@ -20,7 +20,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Context, Volatile } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { COMPACT_RATIO_RANGE, DEFAULTS, DEFAULT_WORKER_MODELS, PLUGIN_ID, PRESET_ID, WORKER_PRESET_ID, assistantSettings, readPeople, readWorkerModels, readWechatRequest, readWechatStates } from './shared/settings.ts'
+import { COMPACT_RATIO_RANGE, DEFAULTS, DEFAULT_WORKER_MODELS, MAX_BALANCE_CHECK_MINUTES, PLUGIN_ID, PRESET_ID, WORKER_PRESET_ID, assistantSettings, readPeople, readWorkerModels, readWechatRequest, readWechatStates } from './shared/settings.ts'
 import type { Person, WechatState, WorkerModel } from './shared/settings.ts'
 import { queryBalance } from './host/balance.ts'
 import type { BalanceState } from './host/balance.ts'
@@ -142,7 +142,7 @@ export function readSettings(config: Partial<Config> | undefined): SharedSetting
     compactRatio: numberOr(live(config?.compactRatio), DEFAULTS.compactRatio, COMPACT_RATIO_RANGE.min, COMPACT_RATIO_RANGE.max),
     workerModels: readWorkerModels(live(config?.workerModels)),
     balanceThreshold: numberOr(live(config?.balanceThreshold), DEFAULTS.balanceThreshold, 0),
-    balanceCheckMinutes: numberOr(live(config?.balanceCheckMinutes), DEFAULTS.balanceCheckMinutes, 1),
+    balanceCheckMinutes: numberOr(live(config?.balanceCheckMinutes), DEFAULTS.balanceCheckMinutes, 1, MAX_BALANCE_CHECK_MINUTES),
     balanceReminder: stringOr(live(config?.balanceReminder), DEFAULTS.balanceReminder),
     personaSelfCorrect: booleanOr(live(config?.personaSelfCorrect), DEFAULTS.personaSelfCorrect),
     personaCooldownHours: numberOr(live(config?.personaCooldownHours), DEFAULTS.personaCooldownHours, 0),

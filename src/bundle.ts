@@ -15,7 +15,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
-import { PLUGIN_ID } from './shared/settings.ts'
+import { PACKAGE_NAME } from './shared/settings.ts'
 
 const groupKey = Symbol.for('cordis.group')
 const init = Symbol.for('cordis.init')
@@ -95,12 +95,12 @@ export async function prepareResolution(
   const parent = pathToFileURL(join(profile.dir, 'package.json')).href
   if (names.every(name => packages.packageOf(name, parent) !== undefined)) return
   const { createRuntimeResolution, loadProfileDirectory, resolveBundleDir } = await boot()
-  const selected = loadProfileDirectory(PLUGIN_ID, profile.dir, profile.installAnchor)
-  if (!selected.layers.some(layer => layer.packageName === PLUGIN_ID)) return
+  const selected = loadProfileDirectory(PACKAGE_NAME, profile.dir, profile.installAnchor)
+  if (!selected.layers.some(layer => layer.packageName === PACKAGE_NAME)) return
   const layers = [
     ...profile.startedBundles.map(packageName => ({
       packageName,
-      packageDir: resolveBundleDir(PLUGIN_ID, packageName, profile.installAnchor, profile.dir),
+      packageDir: resolveBundleDir(PACKAGE_NAME, packageName, profile.installAnchor, profile.dir),
       patchPaths: [],
       patches: [],
     })),
@@ -123,7 +123,7 @@ export default class AssistantSubplugins {
   async *[init](): AsyncGenerator<() => void, void, unknown> {
     await prepareResolution(this.ctx as unknown as { get(name: string): unknown }, subplugins())
     const Group = (this.ctx as unknown as { loader?: { builtins?: { group?: new (ctx: Context, config: unknown) => GroupLike } } }).loader?.builtins?.group
-    if (typeof Group !== 'function') throw new Error(`${PLUGIN_ID}/bundle needs the Loader's cordis:group builtin`)
+    if (typeof Group !== 'function') throw new Error(`${PACKAGE_NAME}/bundle needs the Loader's cordis:group builtin`)
     const rows = childRows(this.config)
     const group = new Group(this.ctx, rows)
     yield () => group.stop()

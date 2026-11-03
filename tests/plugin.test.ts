@@ -92,7 +92,7 @@ function setup(initial: Record<string, unknown> = {}, host: { registry?: OldRegi
 describe('the settings row', () => {
   it('provides the service with defaults and hides both presets', async () => {
     const { service, registry } = setup()
-    expect(service.settings().compactRatio).toBe(0.75)
+    expect(service.settings().compactRatio).toBe(0.5)
     expect((await registry.list()).map(row => row.id)).toEqual(['standard'])
   })
 

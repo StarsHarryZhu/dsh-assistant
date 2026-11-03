@@ -1,6 +1,7 @@
 /**
- * Project files (`projects/<名>.md`): quick edits of a long-running matter's
+ * Project files (`projects/<name>.md`): quick edits of a long-running matter's
  * goal, status, to-dos, and notes. Planning and long documents stay a worker's.
+ * The model writes them for itself, so they are in English.
  * @module dsh-assisstant/host/records/projects
  */
 export declare const PROJECTS_FOLDER = "projects";

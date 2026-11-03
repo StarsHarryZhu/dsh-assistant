@@ -10,6 +10,7 @@ The browser half, bundled by `build.js` into one module-loader factory. It regis
 - Every settings page looks alike, after the user's `dsh-btw` page: a label above each control in one column at most 360px wide, plain group headings, an outlined save button.
 - The Plugins screen holds what every assistant shares (worker models, compaction, balance reminder, persona and profile limits); the settings tab holds what each assistant has for itself (name, form of address, schedule, watchdog, WeChat). The user drew that line.
 - An assistant cannot be created without a workspace folder, and not in another assistant's folder. There is no default location.
+- Numbers and the daily brief time show what is typed, an empty box included, and are corrected when the field is left (nearest bound, whole numbers except the balance threshold, the previous value when nothing readable was typed); the draft holds the corrected value meanwhile, so saving without leaving the field stores it too.
 - Worker models are a multi-choice menu with no "same as the conversation": the last one cannot be unchecked.
 - Menus portal to the body because the conversation header clips overflow.
 - The IM and settings tabs follow the host's Chat (0) and Trajectory (10) tabs and come before plugin tabs, which start at 20 (`VIEW_ORDER`). The header menu comes before the preset label at -10 (`SWITCHER`).

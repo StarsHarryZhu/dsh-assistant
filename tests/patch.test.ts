@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { PACKAGE_NAME, PLUGIN_ID } from '../src/shared/settings.ts'
 
 const ROOT = join(import.meta.dirname, '..')
 const patch = readFileSync(join(ROOT, 'cordis.patch.yml'), 'utf8')
@@ -24,17 +25,16 @@ describe('the bundle patch', () => {
     expect([...patch.matchAll(/^ {4}- id: (\S+)$/gmu)].map(match => match[1])).toEqual([
       'dsh-assisstant', 'dsh-assisstant-subplugins', 'preset-dsh-assisstant', 'preset-dsh-assisstant-worker',
     ])
-    expect(row('dsh-assisstant')).toContain('name: dsh-assisstant\n')
+    expect(row('dsh-assisstant')).toContain("name: '@starsharryzhu/dsh-assistant'\n")
   })
 
   it('mounts every dependency in the group, limited to the family presets and guarded against a standalone copy', () => {
     const group = row('dsh-assisstant-subplugins')
-    expect(group).toContain('name: dsh-assisstant/bundle')
+    expect(group).toContain("name: '@starsharryzhu/dsh-assistant/bundle'")
     expect(group).toContain('group: true')
-    for (const name of Object.keys(manifest.dependencies)) {
-      expect(group).toContain(`name: ${name}\n`)
-      expect(group).toContain(`e.options.id === '${name}' && !e.options.disabled`)
-    }
+    for (const name of Object.keys(manifest.dependencies)) expect(group).toContain(`name: '${name}'\n`)
+    // The row ids stay unscoped: a standalone install keeps the same id the guard looks for.
+    for (const id of ['complete-subagent', 'im-robot']) expect(group).toContain(`e.options.id === '${id}' && !e.options.disabled`)
     expect(group).toContain('presets: [dsh-assisstant, dsh-assisstant-worker]')
     expect(group).toContain('childPreset: dsh-assisstant-worker')
     expect(group).toContain('ownModel: false')
@@ -48,7 +48,7 @@ describe('the bundle patch', () => {
       expect(router).not.toContain(absent)
     }
     expect(router).toMatch(/dsh-tool-fs'\n {12}config:\n {14}write: false\n {14}edit: false/u)
-    expect(router).toContain('name: dsh-assisstant/compactor')
+    expect(router).toContain("name: '@starsharryzhu/dsh-assistant/compactor'")
     expect(router).toContain('role: router')
   })
 
@@ -65,7 +65,7 @@ describe('the bundle patch', () => {
 
 describe('the manifest', () => {
   it('pins the identity, the engine range, and the entries', () => {
-    expect(manifest.name).toBe('dsh-assisstant')
+    expect(manifest.name).toBe('@starsharryzhu/dsh-assistant')
     expect(manifest.version).toBe('0.1.0')
     expect(manifest.license).toBe('MIT')
     expect(manifest.engines.dsh).toBe('>=0.2.1-rc.5 <0.3.0-0')
@@ -75,8 +75,14 @@ describe('the manifest', () => {
   })
 
   it('pins every sub-plugin to an exact version', () => {
-    expect(Object.keys(manifest.dependencies).sort()).toEqual(['complete-subagent', 'im-robot'])
+    expect(Object.keys(manifest.dependencies).sort()).toEqual(['@starsharryzhu/complete-subagent', '@starsharryzhu/im-robot'])
     for (const version of Object.values(manifest.dependencies)) expect(version).toMatch(/^\d+\.\d+\.\d+$/u)
+  })
+
+  it('keeps the internal ids stable while the package name carries the scope', () => {
+    expect(PACKAGE_NAME).toBe(manifest.name)
+    expect(PLUGIN_ID).toBe('dsh-assisstant')
+    expect(manifest.name).not.toBe(PLUGIN_ID)
   })
 
   it('names its titles in both languages', () => {

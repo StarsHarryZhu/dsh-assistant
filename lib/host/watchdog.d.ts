@@ -24,7 +24,7 @@ export interface WatchdogDeps {
     notify(routerSessionId: string, text: string): void;
 }
 /** Starts every system note, so the router tells it from the family member's words. */
-export declare const SYSTEM_PREFIX = "[\u52A9\u7406\u00B7\u7CFB\u7EDF]";
+export declare const SYSTEM_PREFIX = "[assistant-system]";
 /** Watches assistant sessions; the plugin feeds it events and ticks it on a timer. */
 export declare class Watchdog {
     private readonly deps;

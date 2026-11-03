@@ -3,11 +3,12 @@
  * Only the adjustable lines can change, each change is logged, and the host
  * (not the prompt) enforces the setting, the cooldown, and the length limit.
  * The fixed core has no way in: fields are a closed list and values one line.
+ * The model writes it for itself, so it is in English.
  * @module dsh-assisstant/host/records/persona
  */
 export declare const PERSONA_FILE = "persona.md";
 /** The adjustable fields, in file order. */
-export declare const PERSONA_FIELDS: readonly ["语气", "回复长度", "称呼方式", "解释深浅", "表情"];
+export declare const PERSONA_FIELDS: readonly ["Tone", "Reply length", "Form of address", "Depth of explanation", "Emoji"];
 /** One adjustable field. */
 export type PersonaField = (typeof PERSONA_FIELDS)[number];
 /** What decides whether a change may happen. */

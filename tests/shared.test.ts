@@ -6,6 +6,20 @@ import { mergePeople, needingSessions, removedPeople } from '../src/host/people.
 const live = <T>(value: T) => ({ get: () => value })
 
 describe('settings readers', () => {
+  it('ships the defaults the user chose', () => {
+    expect(DEFAULTS).toMatchObject({
+      compactRatio: 0.5,
+      balanceThreshold: 10,
+      balanceCheckMinutes: 120,
+      balanceReminder: '温馨提示：账户余额只剩 {balance} 元了（低于 {threshold} 元）。',
+      personaSelfCorrect: true,
+      personaCooldownHours: 24,
+      personaMaxChars: 2000,
+      profileMaxChars: 6000,
+    })
+    expect(DEFAULT_WORKER_MODELS).toEqual([{ provider: 'deepseek-account', model: 'deepseek-flash' }])
+  })
+
   it('keeps a known permission on an assistant and drops anything else', () => {
     expect(readAssistantSettings({ sandboxMode: 'read-only' })).toEqual({ sandboxMode: 'read-only' })
     expect(readAssistantSettings({ sandboxMode: 'anything' })).toBeUndefined()
@@ -14,9 +28,10 @@ describe('settings readers', () => {
 
   it('fills every setting with its default and rejects out-of-range values', () => {
     expect(readSettings(undefined)).toEqual({ ...DEFAULTS, workerModels: DEFAULT_WORKER_MODELS })
-    const read = readSettings({ compactRatio: live(0.95), balanceReminder: live(''), balanceThreshold: live(5) } as never)
+    const read = readSettings({ compactRatio: live(0.95), balanceReminder: live(''), balanceThreshold: live(5), balanceCheckMinutes: live(99_999_999) } as never)
     expect(read.compactRatio).toBe(DEFAULTS.compactRatio)
     expect(read.balanceReminder).toBe(DEFAULTS.balanceReminder)
+    expect(read.balanceCheckMinutes).toBe(DEFAULTS.balanceCheckMinutes)
     expect(read.balanceThreshold).toBe(5)
   })
 
