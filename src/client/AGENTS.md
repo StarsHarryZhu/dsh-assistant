@@ -1,0 +1,46 @@
+# AGENTS.md
+
+## 1. Role
+
+The browser half, bundled by `build.js` into one module-loader factory. It registers the Assistant row in the left sidebar, which leads straight to an assistant's conversation, with a page behind it that holds the form creating an assistant; and the settings every assistant shares on the Plugins screen. An assistant's conversation opens in the host's own conversation view (the user chose its look over a self-drawn one, accepting that plugins which change that view reach it too); while that view shows an assistant conversation, the browser half makes the title a menu that switches assistants or creates one, adds an IM tab (the WeChat connection) and the assistant's own settings tab to the view tabs, and marks the root so the composer's permission picker is hidden; its model and effort pickers stay usable.
+
+## 2. Constraints
+
+- Every class has the `dsa-` prefix. Rules on host markup: the title beside the header menu is hidden (`nav:has(+ * .dsa-switcher)`, so a split pane's other session keeps its title), and under the root attribute `data-dsh-assisstant-session` they hide `[data-slot='conversation.input.permission']` (workspace-write with automatic refusal matches no host preset and reads "Custom"), and show the plugin's Chinese name in place of the hidden preset's id in the header label; the IM tab is where the permission is picked. The host re-pins the permissions anyway; the model and effort are the composer's.
+- Every settings page looks alike, after the user's `dsh-btw` page: a label above each control in one column at most 360px wide, plain group headings, an outlined save button.
+- The Plugins screen holds what every assistant shares (worker models, compaction, balance reminder, persona and profile limits); the settings tab holds what each assistant has for itself (name, form of address, schedule, watchdog, WeChat). The user drew that line.
+- An assistant cannot be created without a workspace folder, and not in another assistant's folder. There is no default location.
+- Worker models are a multi-choice menu with no "same as the conversation": the last one cannot be unchecked.
+- Menus portal to the body because the conversation header clips overflow.
+- The IM and settings tabs follow the host's Chat (0) and Trajectory (10) tabs and come before plugin tabs, which start at 20 (`VIEW_ORDER`). The header menu comes before the preset label at -10 (`SWITCHER`).
+- The tabs and the header menu exist only while the conversation view holds an assistant conversation: those lists are shared by every session, so they are registered and removed as the view changes.
+- Imports outside the bundle are limited to `react`, `react/jsx-runtime`, and `react-dom`; host services are typed structurally in `host.ts`.
+- Every control is inline: the desktop shell has no `window.prompt`.
+- The assistant list and WeChat requests are written through the settings form of the settings row; the host writes its findings back the same way.
+
+## 3. Contents
+
+- `index.ts` — registrations, the watcher that adds the tabs, the header menu, and the root attribute.
+- `host.ts` — structural types of the host props and client services.
+- `page.tsx` — the page behind the sidebar row: opens the assistant last shown here, or the create form (name, what it calls you, required workspace), or lists assistants whose conversation is not ready.
+- `switcher.tsx` — the assistant's name in the conversation header, as the menu that switches assistants or creates one.
+- `menu.tsx` — the dropdown both menus use.
+- `im.tsx` — the IM tab: QR binding, then the account, the conversation's model and effort, the assistant's permission, send mode, commands, the fixed settings disabled, diagnosis, reconnect, removal.
+- `record-row.tsx` — the plain title a record tool's call shows in the conversation.
+- `assistants.ts` — assistant list and WeChat request helpers over the settings form, and the assistant last shown in this browser.
+- `settings.tsx` — both settings pages: the shared one with the workers' models, and each assistant's own, which also renames and deletes it.
+- `qr.tsx` — draws a QR code as SVG.
+- `locales.ts` — copy, Chinese first.
+- `styles.css` — the stylesheet, inlined by the build.
+- `css.d.ts` — the type of the inlined stylesheet module.
+- `vendor` — vendored third-party code.
+
+## 4. Progress
+
+- Done (2026-11-01, user request): the page creates an assistant with a name, an optional form of address, and a workspace.
+- Done (2026-11-01, user request): the self-drawn conversation is gone; assistants open in the host's conversation view with the IM and settings tabs.
+- Done (2026-11-02, user request): the IM and settings tabs sit right after Trajectory.
+- Done (2026-11-02, user request): record tools' calls read in plain words in the conversation; the host's generic row ignores a tool's `presentCall`, so each has a keyed row.
+- Done (2026-11-02, user request): the sidebar row opens a conversation directly and the title is the assistant menu, replacing the list page; the workspace folder is required; settings split into shared and per-assistant; worker models are a multi-choice menu; every settings page, the IM tab included, takes the `dsh-btw` look.
+- Done (2026-11-03, reported by the user): the real desktop app and the bound IM tab with a real phone.
+- Known limits: other plugins' changes to the conversation view also apply to assistant conversations.

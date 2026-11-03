@@ -1,0 +1,17 @@
+/** Bundled client modules (15):
+ *   client/assistants.js
+ *   client/host.js
+ *   client/im.js
+ *   client/index.js
+ *   client/locales.js
+ *   client/menu.js
+ *   client/page.js
+ *   client/qr.js
+ *   client/record-row.js
+ *   client/settings.js
+ *   client/styles.css
+ *   client/switcher.js
+ *   client/vendor/qrcode-generator.js
+ *   shared/record-tools.js
+ *   shared/settings.js
+ */

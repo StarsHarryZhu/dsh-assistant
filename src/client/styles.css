@@ -1,0 +1,168 @@
+/* dsh-assisstant: the assistant page, the IM and settings tabs, and the
+   settings page. Every class carries the dsa- prefix. The only rules that
+   target host markup apply while the conversation view shows an assistant
+   conversation (the root attribute the browser half sets): they hide the
+   permission picker and name the preset in the header. Colors come from the
+   host theme, so light and dark modes follow it. */
+
+/* The assistant's sandbox mode with automatic refusal may match no host
+   permission preset and read "Custom"; the IM tab picks it instead. The
+   slot element itself carries an inline display, so its children are hidden. */
+:root[data-dsh-assisstant-session] [data-slot='conversation.input.permission'] > * {
+  display: none;
+}
+/* The hidden preset is missing from the roster the header label reads, so the
+   label would show its id; show the name instead (the label is the span with a
+   title right after the header menu). */
+:root[data-dsh-assisstant-session] .dsa-switcher + span[title] {
+  font-size: 0;
+}
+:root[data-dsh-assisstant-session] .dsa-switcher + span[title]::after {
+  content: '助理';
+  font-size: 13px;
+}
+
+.dsa-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 16px 20px;
+  color: var(--dsw-alias-label-primary, inherit);
+}
+
+[data-platform='darwin'] .dsa-page {
+  padding-top: calc(16px + var(--dsh-frame-top-clearance, 0px));
+}
+
+.dsa-note { color: var(--dsw-alias-label-secondary, #666); font-size: 12px; margin: 0; }
+.dsa-error { color: var(--dsw-alias-state-error-primary, #c0392b); }
+.dsa-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.dsa-record-row { padding: 2px 0; font-size: 13px; color: var(--dsw-alias-label-secondary, #666); }
+
+.dsa-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--dsw-alias-border-l2, #ccc);
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.dsa-button:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover, rgba(127, 127, 127, 0.12)); }
+.dsa-button:disabled { opacity: 0.5; cursor: default; }
+.dsa-primary { border-color: var(--dsw-alias-border-l4, #999); }
+.dsa-danger { color: var(--dsw-alias-state-error-primary, #c0392b); }
+.dsa-outline { border-color: var(--dsw-alias-state-error-primary, #c0392b); }
+
+/* Every settings page: a label above each control, one narrow column. */
+.dsa-settings { display: flex; flex-direction: column; gap: 24px; font-size: 13px; }
+.dsa-group { display: flex; flex-direction: column; gap: 12px; }
+.dsa-group > h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.dsa-field { display: flex; flex-direction: column; gap: 4px; max-width: 360px; font-size: 13px; }
+.dsa-field > span:first-child { font-weight: 500; }
+.dsa-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+.dsa-text {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--dsw-alias-border-l2, #ccc);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-2, transparent);
+  color: inherit;
+  font: inherit;
+}
+select.dsa-text { appearance: auto; }
+.dsa-text:disabled { opacity: 0.6; }
+.dsa-field .dsa-row .dsa-text { flex: 1; width: auto; min-width: 0; }
+
+.dsa-multi { display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; cursor: pointer; }
+.dsa-dropdown-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The menu is portalled to the body, outside the plugin's containers. */
+.dsa-dropdown {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  max-height: 320px;
+  max-width: 360px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--dsw-alias-border-l2, #ccc);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-2, #fff);
+  color: var(--dsw-alias-label-primary, inherit);
+  font-size: 13px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+}
+.dsa-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dsa-menu-item:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover, rgba(127, 127, 127, 0.12)); }
+.dsa-menu-item:disabled { opacity: 0.6; cursor: default; }
+.dsa-menu-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsa-menu-group { display: flex; flex-direction: column; }
+.dsa-menu-heading { padding: 4px 8px; font-size: 12px; color: var(--dsw-alias-label-secondary, #666); }
+.dsa-menu-separator { height: 1px; margin: 4px 0; background: var(--dsw-alias-border-l2, #ddd); }
+
+/* The assistant's name is the header's title: the host's plain title beside the menu steps aside. */
+nav:has(+ * .dsa-switcher) { display: none; }
+.dsa-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 240px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dsa-switcher:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(127, 127, 127, 0.12)); }
+
+.dsa-create { display: flex; flex-direction: column; gap: 12px; max-width: 360px; margin: 48px auto; font-size: 13px; }
+.dsa-create h2 { margin: 0; font-size: 20px; }
+
+.dsa-confirm p { margin: 0; flex-basis: 100%; font-size: 13px; }
+.dsa-qr { border-radius: 8px; }
+
+/* The composer floats over the bottom of a view, so a view scrolls past it. */
+.dsa-view { box-sizing: border-box; width: 100%; max-width: 880px; margin: 0 auto; padding: 16px 20px 200px; color: var(--dsw-alias-label-primary, inherit); overflow-y: auto; height: 100%; }
+.dsa-im { display: flex; flex-direction: column; gap: 16px; font-size: 13px; }
+.dsa-im-head { display: flex; align-items: flex-start; gap: 14px; padding-bottom: 16px; border-bottom: 1px solid var(--dsw-alias-border-l2, #ddd); }
+.dsa-im-mark { flex: none; }
+.dsa-im-account { display: flex; flex-direction: column; gap: 4px; }
+.dsa-im-name { font-size: 20px; }
+.dsa-badge { font-size: 12px; border-radius: 6px; padding: 2px 8px; }
+.dsa-badge-ok { color: #2ea44f; background: rgba(46, 164, 79, 0.15); }
+.dsa-badge-warn { color: #d4880f; background: rgba(212, 136, 15, 0.15); }
+.dsa-badge-idle { color: var(--dsw-alias-label-secondary, #666); background: var(--dsw-alias-interactive-bg-hover, rgba(127, 127, 127, 0.12)); }
+.dsa-im-bind { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.dsa-diagnosis { border: 1px solid var(--dsw-alias-border-l2, #ddd); border-radius: 10px; padding: 10px 14px; font-size: 13px; }
+.dsa-diagnosis ul { margin: 6px 0 0; padding-left: 4px; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.dsa-check-ok { color: #2ea44f; }
+.dsa-check-bad { color: var(--dsw-alias-state-error-primary, #c0392b); }
+.dsa-im-actions { display: flex; flex-wrap: wrap; gap: 10px; }

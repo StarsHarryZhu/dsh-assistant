@@ -1,0 +1,103 @@
+{
+  "name": "dsh-assisstant",
+  "version": "0.1.0",
+  "description": "Assistant for DeepSeek Harness: a left-sidebar row that opens an assistant's long-running conversation on a hidden agent preset, with a workspace per assistant, automatic compaction, a balance reminder, a self-correcting persona, a schedule, and WeChat through the im-robot sub-plugin.",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "assistant",
+    "agent-preset"
+  ],
+  "author": "Starfield (https://github.com/StarsHarryZhu)",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./bundle": {
+      "types": "./lib/bundle.d.ts",
+      "default": "./lib/bundle.js"
+    },
+    "./policy": {
+      "types": "./lib/policy.d.ts",
+      "default": "./lib/policy.js"
+    },
+    "./compactor": {
+      "types": "./lib/compactor.d.ts",
+      "default": "./lib/compactor.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./locale/*.json": "./locale/*.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "src",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "README.md",
+    "AGENTS.md",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "scripts": {
+    "link-dev": "node scripts/link-dev.mjs",
+    "build": "node build.js",
+    "typecheck": "node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json && node node_modules/typescript/bin/tsc --noEmit -p tsconfig.client.json",
+    "test": "node build.js && node node_modules/vitest/vitest.mjs run"
+  },
+  "dependencies": {
+    "complete-subagent": "0.1.0",
+    "im-robot": "0.1.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/dsh-tools": ">=0.2.1-rc.3 <0.3.0-0",
+    "@deepseek-ai/schemastery": "^3.18.5",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^22.20.1",
+    "@types/react": "~18.3.31",
+    "@types/react-dom": "~18.3.7",
+    "jsdom": "^29.1.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.11"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/dsh-app-boot": ">=0.2.1-rc.3 <0.3.0-0",
+    "@deepseek-ai/dsh-tools": ">=0.2.1-rc.3 <0.3.0-0",
+    "@deepseek-ai/schemastery": "^3.18.5"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-plugin-manager",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-workspace"
+      ]
+    }
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0",
+    "dsh": ">=0.2.1-rc.5 <0.3.0-0"
+  },
+  "license": "MIT"
+}
