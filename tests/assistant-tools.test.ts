@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { assistantTools, moveFromTemp } from '../src/host/assistant-tools.ts'
+import { assistantTools } from '../src/host/assistant-tools.ts'
+import { copyFromInbox, copyName, pruneOldFiles } from '../src/host/inbox.ts'
 import { recordToolTitle } from '../src/shared/record-tools.ts'
 import type { WakeRequest } from '../src/host/heartbeat.ts'
 import type { Person } from '../src/shared/settings.ts'
@@ -33,29 +34,37 @@ function setup(person: Person = { id: 'mom', name: '阿福', cwd: '/w', sessionI
 beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'], now: NOW }) })
 afterEach(() => { vi.useRealTimers() })
 
-describe('im_send', () => {
+describe('im_route', () => {
   it('reports each outcome so the model knows what to do next', async () => {
     const { service, call } = setup()
-    service.sendToChat = () => ({ status: 'sent' })
-    const sent = await call('im_send', { text: '你好' })
-    expect(sent.ok).toBe(true)
-    expect(sent.message).toContain('writing the same words as your reply')
-    service.sendToChat = () => ({ status: 'held', until: Date.parse('2026-11-06T08:00:00+08:00') })
-    const held = await call('im_send', { text: '你好' })
-    expect(held.ok).toBe(true)
-    expect(held.message).toContain('11/06 08:00')
-    expect(held.message).toContain('Do not send it again')
-    service.sendToChat = () => ({ status: 'unavailable' })
-    const none = await call('im_send', { text: '你好' })
-    expect(none.ok).toBe(false)
-    expect(none.message).toContain('Write it as your reply')
-    expect((await call('im_send', { text: '  ' })).ok).toBe(false)
+    const calls: unknown[] = []
+    service.routeChat = (_person, _session, send) => {
+      calls.push(send)
+      return { status: 'routed' }
+    }
+    const routed = await call('im_route', { send: true })
+    expect(routed).toMatchObject({ ok: true, message: expect.stringContaining('goes to WeChat too') })
+    expect(routed.message).toContain('<keep>')
+    service.routeChat = () => ({ status: 'held', until: Date.parse('2026-11-06T08:00:00+08:00') })
+    const held = await call('im_route', { send: true })
+    expect(held).toMatchObject({ ok: true, message: expect.stringContaining('11/06 08:00') })
+    expect(held.message).toContain('shows in the app now')
+    service.routeChat = (_person, _session, send) => {
+      calls.push(send)
+      return { status: 'kept' }
+    }
+    expect((await call('im_route', { send: false })).message).toContain('stays in the app only')
+    expect(calls).toEqual([true, false])
+    service.routeChat = () => ({ status: 'unavailable' })
+    expect(await call('im_route', { send: true })).toMatchObject({ ok: false, message: expect.stringContaining('No chat app is connected') })
+    service.routeChat = () => ({ status: 'no-turn' })
+    expect((await call('im_route', { send: true })).ok).toBe(false)
   })
 
   it('turns a failure into a result', async () => {
     const { service, call } = setup()
-    service.sendToChat = () => { throw new Error('boom') }
-    expect(await call('im_send', { text: '你好' })).toMatchObject({ ok: false, message: expect.stringContaining('boom') })
+    service.routeChat = () => { throw new Error('boom') }
+    expect(await call('im_route', { send: true })).toMatchObject({ ok: false, message: expect.stringContaining('boom') })
   })
 })
 
@@ -167,69 +176,104 @@ describe('quiet_set', () => {
   })
 })
 
-describe('temp_move', () => {
+describe('media_copy', () => {
   const workspace = () => {
-    const root = mkdtempSync(join(tmpdir(), 'dsa-move-'))
-    mkdirSync(join(root, 'temp'))
-    writeFileSync(join(root, 'temp', 'a.pdf'), 'content')
+    const root = mkdtempSync(join(tmpdir(), 'dsa-copy-'))
+    mkdirSync(join(root, 'IM', 'WeChat'), { recursive: true })
+    writeFileSync(join(root, 'IM', 'WeChat', '20261105-213502-报告.pdf'), 'content')
     return root
   }
+  const original = (root: string) => join(root, 'IM', 'WeChat', '20261105-213502-报告.pdf')
 
-  it('moves a file by its name, its path, or its full path, making the folder', () => {
-    for (const form of ['a.pdf', 'temp/a.pdf', 'full'] as const) {
+  it('copies a file by its name, its path, or its full path, under the name it was sent with, keeping the original', () => {
+    for (const form of ['20261105-213502-报告.pdf', 'IM/WeChat/20261105-213502-报告.pdf', 'full'] as const) {
       const root = workspace()
-      const result = moveFromTemp(root, form === 'full' ? join(root, 'temp', 'a.pdf') : form, 'projects/装修')
-      expect(result).toEqual({ ok: true, message: 'Moved to projects/装修/a.pdf.' })
-      expect(readFileSync(join(root, 'projects', '装修', 'a.pdf'), 'utf8')).toBe('content')
-      expect(existsSync(join(root, 'temp', 'a.pdf'))).toBe(false)
+      const result = copyFromInbox(root, form === 'full' ? original(root) : form, 'projects/装修')
+      expect(result).toEqual({ ok: true, message: 'Copied to projects/装修/报告.pdf. Work on that copy, never on the file in IM/.' })
+      expect(readFileSync(join(root, 'projects', '装修', '报告.pdf'), 'utf8')).toBe('content')
+      expect(existsSync(original(root))).toBe(true)
     }
+  })
+
+  it('keeps the time on a generic name, and takes the older temp folder too', () => {
+    expect(copyName('20261105-213502-image.jpg')).toBe('20261105-213502-image.jpg')
+    expect(copyName('20261105-213502-image-1.png')).toBe('20261105-213502-image-1.png')
+    expect(copyName('20261105-213502-合同.docx')).toBe('合同.docx')
+    const root = workspace()
+    mkdirSync(join(root, 'temp'))
+    writeFileSync(join(root, 'temp', 'old.txt'), 'old')
+    expect(copyFromInbox(root, 'temp/old.txt', 'files').message).toContain('files/old.txt')
+    expect(copyFromInbox(root, 'IM/WeChat/20261105-213502-报告.pdf', '.').message).toContain('Copied to 报告.pdf.')
   })
 
   it('never overwrites', () => {
     const root = workspace()
     mkdirSync(join(root, 'docs'))
-    writeFileSync(join(root, 'docs', 'a.pdf'), 'older')
-    expect(moveFromTemp(root, 'a.pdf', 'docs').message).toBe('Moved to docs/a-1.pdf.')
-    expect(readFileSync(join(root, 'docs', 'a.pdf'), 'utf8')).toBe('older')
+    writeFileSync(join(root, 'docs', '报告.pdf'), 'older')
+    expect(copyFromInbox(root, '20261105-213502-报告.pdf', 'docs').message).toContain('Copied to docs/报告-1.pdf.')
+    expect(readFileSync(join(root, 'docs', '报告.pdf'), 'utf8')).toBe('older')
   })
 
-  it('moves only out of temp, only within the workspace', () => {
+  it('copies only out of the inbox, only to a folder of the workspace outside it', () => {
     const root = workspace()
     writeFileSync(join(root, 'profile.md'), 'mine')
-    expect(moveFromTemp(root, 'profile.md', 'docs').ok).toBe(false)
-    expect(moveFromTemp(root, '../profile.md', 'docs').ok).toBe(false)
-    expect(moveFromTemp(root, '../../etc/passwd', 'docs').ok).toBe(false)
-    expect(moveFromTemp(root, '/etc/passwd', 'docs').ok).toBe(false)
-    expect(moveFromTemp(root, 'missing.pdf', 'docs').ok).toBe(false)
-    expect(moveFromTemp(root, 'a.pdf', '../outside').ok).toBe(false)
-    expect(moveFromTemp(root, 'a.pdf', '/tmp/outside').ok).toBe(false)
-    expect(moveFromTemp(root, 'a.pdf', 'temp/sub').ok).toBe(false)
-    expect(moveFromTemp(root, 'a.pdf', 'temp').ok).toBe(false)
-    expect(existsSync(join(root, 'temp', 'a.pdf'))).toBe(true)
+    expect(copyFromInbox(root, 'profile.md', 'docs').ok).toBe(false)
+    expect(copyFromInbox(root, '../profile.md', 'docs').ok).toBe(false)
+    expect(copyFromInbox(root, 'IM/../profile.md', 'docs').ok).toBe(false)
+    expect(copyFromInbox(root, '/etc/passwd', 'docs').ok).toBe(false)
+    expect(copyFromInbox(root, 'missing.pdf', 'docs')).toMatchObject({ ok: false, message: expect.stringContaining('send it again') })
+    expect(copyFromInbox(root, '20261105-213502-报告.pdf', '../outside').ok).toBe(false)
+    expect(copyFromInbox(root, '20261105-213502-报告.pdf', '/tmp/outside').ok).toBe(false)
+    expect(copyFromInbox(root, '20261105-213502-报告.pdf', 'IM/WeChat/sub').ok).toBe(false)
+    expect(copyFromInbox(root, '20261105-213502-报告.pdf', 'IM').ok).toBe(false)
+    expect(readdirSync(join(root, 'IM', 'WeChat'))).toEqual(['20261105-213502-报告.pdf'])
   })
 
   it('does not follow a link out of the workspace', () => {
     const root = workspace()
     const elsewhere = mkdtempSync(join(tmpdir(), 'dsa-elsewhere-'))
     symlinkSync(elsewhere, join(root, 'away'))
-    expect(moveFromTemp(root, 'a.pdf', 'away').ok).toBe(false)
-    expect(existsSync(join(root, 'temp', 'a.pdf'))).toBe(true)
+    expect(copyFromInbox(root, '20261105-213502-报告.pdf', 'away').ok).toBe(false)
+    expect(readdirSync(elsewhere)).toEqual([])
   })
 
   it('works as a tool, and needs a workspace', async () => {
     const root = workspace()
-    expect((await setup({ id: 'mom', name: '阿福', cwd: root }).call('temp_move', { file: 'a.pdf', to: 'docs' })).ok).toBe(true)
-    expect((await setup({ id: 'mom', name: '阿福' }).call('temp_move', { file: 'a.pdf', to: 'docs' })).ok).toBe(false)
+    expect((await setup({ id: 'mom', name: '阿福', cwd: root }).call('media_copy', { file: '20261105-213502-报告.pdf', to: 'docs' })).ok).toBe(true)
+    expect((await setup({ id: 'mom', name: '阿福' }).call('media_copy', { file: 'a.pdf', to: 'docs' })).ok).toBe(false)
+  })
+})
+
+describe('the inbox clean-up', () => {
+  it('removes plain files older than the days kept, and nothing when kept for good', () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsa-prune-'))
+    const folder = join(root, 'IM', 'WeChat')
+    mkdirSync(join(folder, 'sub'), { recursive: true })
+    const day = 86_400_000
+    const file = (name: string, age: number) => {
+      writeFileSync(join(folder, name), name)
+      const at = (NOW - age) / 1000
+      utimesSync(join(folder, name), at, at)
+    }
+    file('old.jpg', 31 * day)
+    file('new.jpg', 29 * day)
+    symlinkSync(join(root, 'elsewhere'), join(folder, 'link'))
+    expect(pruneOldFiles(folder, 0, NOW)).toBe(0)
+    expect(pruneOldFiles(folder, 30, NOW)).toBe(1)
+    expect(readdirSync(folder).sort()).toEqual(['link', 'new.jpg', 'sub'])
+    expect(pruneOldFiles(join(root, 'missing'), 30, NOW)).toBe(0)
   })
 })
 
 describe('the titles', () => {
-  it('read plainly, without markers, and stay short', () => {
-    expect(recordToolTitle('im_send', { text: '<keep>第一步</keep>' })).toBe('发到微信：第一步')
+  it('read plainly and stay short', () => {
+    expect(recordToolTitle('im_route', { send: true })).toBe('回复也发到微信')
+    expect(recordToolTitle('im_route', { send: false })).toBe('回复只留在这里')
+    expect(recordToolTitle('media_copy', { file: '/w/IM/WeChat/20261105-213502-报告.pdf' })).toBe('复制微信发来的文件：20261105-213502-报告.pdf')
     expect(recordToolTitle('quiet_set', {})).toBe('改勿扰时间')
     expect(recordToolTitle('brief_set', { time: '07:00' })).toBe('改早上提示时间：07:00')
     expect(recordToolTitle('wake_after', { reason: '叫他' })).toBe('稍后再看：叫他')
-    expect([...recordToolTitle('im_send', { text: '长'.repeat(100) })].length).toBeLessThan(70)
+    expect([...recordToolTitle('wake_after', { reason: '长'.repeat(100) })].length).toBeLessThan(70)
   })
 })
 
@@ -237,6 +281,6 @@ describe('no assistant', () => {
   it('does nothing without one', async () => {
     const service = fakeService()
     const tools = assistantTools({ service, person: () => undefined, zone: () => ZONE }) as Tool[]
-    expect((await tools[0]!.execute({ text: 'x' }, {})).ok).toBe(false)
+    expect((await tools[0]!.execute({ send: true }, {})).ok).toBe(false)
   })
 })

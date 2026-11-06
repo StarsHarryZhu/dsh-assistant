@@ -80,6 +80,10 @@ function setup(initial: Record<string, unknown> = {}, host: { registry?: OldRegi
       status: () => ({ bound: false }),
       setBindingOptions: (bindingId: string, options: unknown) => { robotCalls.push(`binding-options:${bindingId}:${JSON.stringify(options)}`) },
       send: (bindingId: string, text: string) => { robotCalls.push(`send:${bindingId}:${text}`) },
+      route: (bindingId: string, route: { chat: boolean; notBefore?: number }) => {
+        robotCalls.push(`route:${bindingId}:${route.chat}${route.notBefore === undefined ? '' : ':held'}`)
+        return true
+      },
     },
     schedule: {
       list: async ({ sessionId }: { sessionId: string }) => (sessionId === 's-mom' ? [{ id: 'old-1' }, { id: 'old-2' }] : []),
@@ -268,12 +272,12 @@ describe('the settings row', () => {
       ],
       wechatState: { mom: { status: 'bound', updatedAt: 1 }, dad: { status: 'bound', updatedAt: 1 } },
     })
-    expect(robotCalls).toContain('binding-options:mom:{"enabled":true,"replyMaxChars":800,"mediaDir":"/w/temp"}')
-    expect(robotCalls).toContain('binding-options:dad:{"enabled":false,"replyMaxChars":100,"mediaDir":"/d/temp"}')
+    expect(robotCalls).toContain('binding-options:mom:{"enabled":true,"replyMaxChars":800,"mediaDir":"/w/IM/WeChat"}')
+    expect(robotCalls).toContain('binding-options:dad:{"enabled":false,"replyMaxChars":100,"mediaDir":"/d/IM/WeChat"}')
     expect(robotCalls.some(call => call.startsWith('binding-options:kid'))).toBe(false)
     robotCalls.length = 0
     await update({ wechatState: { mom: { status: 'bound', updatedAt: 1 }, dad: { status: 'bound', updatedAt: 1 }, kid: { status: 'bound', updatedAt: 2 } } })
-    expect(robotCalls).toContain('binding-options:kid:{"enabled":true,"replyMaxChars":100,"mediaDir":"/k/temp"}')
+    expect(robotCalls).toContain('binding-options:kid:{"enabled":true,"replyMaxChars":100,"mediaDir":"/k/IM/WeChat"}')
   })
 
   it('has the assistant introduce itself on WeChat after each binding, even in quiet hours', async () => {
@@ -285,10 +289,10 @@ describe('the settings row', () => {
     await settle()
     expect(prompts.at(-1)?.sessionId).toBe('s-mom')
     expect(prompts.at(-1)?.text).toContain('just connected their WeChat')
-    expect(robotCalls.some(call => call.startsWith('binding-options:mom:') && call.includes('"mediaDir":"/w/temp"'))).toBe(true)
+    expect(robotCalls.some(call => call.startsWith('binding-options:mom:') && call.includes('"mediaDir":"/w/IM/WeChat"'))).toBe(true)
     const person = service.people()[0]!
-    expect(service.sendToChat(person, 's-mom', '你好')).toEqual({ status: 'sent' })
-    expect(robotCalls).toContain('send:mom:你好')
+    expect(service.routeChat(person, 's-mom', true)).toEqual({ status: 'routed' })
+    expect(robotCalls).toContain('route:mom:true')
     // One turn only: afterwards quiet hours hold again.
     ctx.emit('session/event', fakeSession('s-mom'), { type: 'turn/end' })
     await update({ wechatRequest: { personId: 'mom', action: 'unbind', nonce: 'n2' } })
@@ -299,7 +303,7 @@ describe('the settings row', () => {
     expect(prompts.length).toBe(count + 1)
   })
 
-  it('sends to the chat app, holds it in quiet hours unless the user is talking now, and says when nothing is connected', async () => {
+  it('routes a reply to the chat app, held in quiet hours unless the user is talking now, and says when nothing is connected', async () => {
     const root = mkdtempSync(join(tmpdir(), 'dsa-chat-'))
     writeFileSync(join(root, 'profile.md'), '# Profile\n\n- Time zone: UTC\n')
     const registry = new Registry()
@@ -314,18 +318,21 @@ describe('the settings row', () => {
     registry.presets.set('s-mom', 'dsh-assisstant')
     const person = service.people()[0]!
     expect(service.zoneFor(fakeSession('s-mom'))).toBe('UTC')
-    expect(service.sendToChat(person, 's-mom', '晚点说')).toMatchObject({ status: 'held' })
-    expect(robotCalls.filter(call => call.startsWith('send:'))).toEqual([])
+    expect(service.routeChat(person, 's-mom', true)).toMatchObject({ status: 'held' })
+    expect(robotCalls.filter(call => call.startsWith('route:'))).toEqual(['route:mom:true:held'])
+    expect(service.routeChat(person, 's-mom', false)).toEqual({ status: 'kept' })
+    expect(robotCalls.at(-1)).toBe('route:mom:false')
     expect(service.turnFromUser('s-mom')).toBe(false)
     ctx.emit('session/event', fakeSession('s-mom'), { type: 'turn/start' })
     ctx.emit('session/event', fakeSession('s-mom'), { type: 'user/message', data: { source: { kind: 'user' } } })
     expect(service.turnFromUser('s-mom')).toBe(true)
-    expect(service.sendToChat(person, 's-mom', '现在说')).toEqual({ status: 'sent' })
+    expect(service.routeChat(person, 's-mom', true)).toEqual({ status: 'routed' })
+    expect(robotCalls.at(-1)).toBe('route:mom:true')
     ctx.emit('session/event', fakeSession('s-mom'), { type: 'turn/end' })
     expect(service.turnFromUser('s-mom')).toBe(false)
     store.wechatState = {}
     expect(service.chatConnected(person)).toBe(false)
-    expect(service.sendToChat(person, 's-mom', 'x')).toEqual({ status: 'unavailable' })
+    expect(service.routeChat(person, 's-mom', true)).toEqual({ status: 'unavailable' })
   })
 
   it('removes what earlier versions left among the host\'s automation tasks', async () => {

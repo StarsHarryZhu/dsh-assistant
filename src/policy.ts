@@ -13,8 +13,9 @@
  *   ask); the model and effort are whatever the composer chose for this
  *   conversation;
  * - only complete-subagent's delegation and review tools among global tools;
- * - the record tools, its own tools (the chat app, wake-ups, quiet hours, moving
- *   files out of `temp/`), the `balance_check` tool, and the `/ddl` command,
+ * - the record tools, its own tools (routing a reply to the chat app, wake-ups,
+ *   quiet hours, the brief's time, copying files out of the chat inbox `IM/`),
+ *   the `balance_check` tool, and the `/ddl` command,
  *   which prints the week view itself.
  *
  * `role: worker` (the `dsh-assisstant-worker` preset every `delegate` child
@@ -137,11 +138,12 @@ export function channelText(service: AssistantService, sessionId: string): strin
   const person = service.personForSession(sessionId)
   if (person === undefined || !service.chatConnected(person)) return ''
   const chars = assistantSettings(person).wechatReplyMaxChars
-  const outside = 'Turns no WeChat message started (heartbeats, worker reports, other system notes): your text stays in the app, and only `im_send` reaches them. Use it for whatever they must see, wherever they last wrote.'
-  const format = `Text for WeChat goes out as chat messages of at most ${chars} characters each, split at sentence breaks. Write it like a person chatting: plain text, no Markdown, short complete sentences, and keep the whole of it brief. Say only the result or what they need to decide; never report progress or steps. When a list, table, or set of steps must stay in one message, wrap that block in <keep> and </keep> (the markers are not shown; one block holds at most 2000 characters).`
+  const routing = 'Where your final reply goes is yours to choose with `im_route`. Without it, the reply to a WeChat message goes back to WeChat, and every other reply stays in the app, where they may not look. '
+    + 'Call it with send true before replying whenever they must see the reply (a reminder, the daily brief, a worker\'s result, a question for them, something that could not be done, or anything they asked you to send there), and with send false to keep a reply to a WeChat message in the app only. The app shows the reply either way.'
+  const format = `Text for WeChat goes out as chat messages of at most ${chars} characters each, split at sentence breaks. Write it like a person chatting: plain text, no Markdown, short complete sentences, and keep the whole of it brief. Say only the result or what they need to decide; never report progress or steps. When a list, table, or set of steps must stay in one message, wrap that block in <keep> and </keep> (the markers are not sent; one block holds at most 2000 characters).`
   return service.lastInput(sessionId) === 'wechat'
-    ? ['# Chat app: WeChat', '', `The user's latest message came from WeChat, and your final reply to it goes back there by itself: do not also call \`im_send\` for it. ${format}`, '', outside].join('\n')
-    : ['# Chat app: WeChat', '', `WeChat is connected, but the user's latest message came from the app, so answer it as usual, with no WeChat markers. ${outside}`, '', format].join('\n')
+    ? ['# Chat app: WeChat', '', `The user's latest message came from WeChat, and your reply to it goes back there by itself. ${format}`, '', routing].join('\n')
+    : ['# Chat app: WeChat', '', `WeChat is connected, but the user's latest message came from the app, so answer it as usual, without WeChat markers, unless it should reach them on WeChat. ${routing}`, '', format].join('\n')
 }
 
 /** @returns the heartbeat and quiet hours as they stand, for the model to answer questions and tell what it may do. */

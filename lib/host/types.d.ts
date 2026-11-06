@@ -256,8 +256,19 @@ export interface ImRobotLike {
         replyMaxChars?: number;
         mediaDir?: string;
     }): unknown;
-    /** Send text to the account through its outbox; throws when the binding cannot send. Since im-robot 0.2.0. */
-    send?(bindingId: string, text: string): void;
+    /** Send text to the account through its outbox, not before `notBefore`; throws when the binding cannot send. Since im-robot 0.2.0; `notBefore` since 0.2.1. */
+    send?(bindingId: string, text: string, options?: {
+        notBefore?: number;
+    }): void;
+    /**
+     * Route the bound session's running turn: its final text to the chat (not
+     * before `notBefore`) or kept off it; false when no turn is running; throws
+     * when the binding cannot send. Since im-robot 0.2.1.
+     */
+    route?(bindingId: string, route: {
+        chat: boolean;
+        notBefore?: number;
+    }): boolean;
     reconnect?(bindingId: string): Promise<ImBindingStatus>;
     diagnose?(bindingId: string): Promise<ImDiagnosis>;
 }

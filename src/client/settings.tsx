@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useState, type ReactNode } from 'react'
-import { ASSISTANT_DEFAULTS, COMPACT_RATIO_RANGE, DEFAULTS, MAX_BALANCE_CHECK_MINUTES, MAX_HEARTBEAT_MINUTES, MIN_HEARTBEAT_MINUTES, MIN_WATCHDOG_MINUTES, MIN_WECHAT_REPLY_CHARS, assistantSettings, readWorkerModels } from '../shared/settings.ts'
+import { ASSISTANT_DEFAULTS, COMPACT_RATIO_RANGE, DEFAULTS, MAX_BALANCE_CHECK_MINUTES, MAX_HEARTBEAT_MINUTES, MIN_HEARTBEAT_MINUTES, MAX_WECHAT_MEDIA_DAYS, MIN_WATCHDOG_MINUTES, MIN_WECHAT_REPLY_CHARS, assistantSettings, readWorkerModels } from '../shared/settings.ts'
 import type { AssistantSettings, Person, WorkerModel } from '../shared/settings.ts'
 import { assistantsView, clearTemporaryQuiet, removePerson, updateAssistant, useForm } from './assistants.ts'
 import type { AssistantsView } from './assistants.ts'
@@ -57,6 +57,7 @@ export const ASSISTANT_FIELDS: readonly Field[] = [
   { key: 'watchdogStallMinutes', kind: 'number', group: 'watchdog', min: MIN_WATCHDOG_MINUTES },
   { key: 'wechatEnabled', kind: 'boolean', group: 'wechat' },
   { key: 'wechatReplyMaxChars', kind: 'number', group: 'wechat', min: MIN_WECHAT_REPLY_CHARS },
+  { key: 'wechatMediaDays', kind: 'number', group: 'wechat', min: 0, max: MAX_WECHAT_MEDIA_DAYS },
 ]
 
 const ASSISTANT_GROUPS = ['schedule', 'heartbeat', 'quiet', 'watchdog', 'wechat']

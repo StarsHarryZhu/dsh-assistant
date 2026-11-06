@@ -1,25 +1,22 @@
 /**
- * The assistant conversation's tools beyond its records: reaching the user's
- * chat app, waking itself later, quiet hours, and moving what came in from a chat
- * out of `temp/`. They register in the router preset's scope only, so no other
- * session sees them, and return plain text for the model.
+ * The assistant conversation's tools beyond its records: choosing whether a
+ * turn's reply reaches the user's chat app, waking itself later, quiet hours,
+ * the daily brief's time, and copying what came in from a chat out of the
+ * inbox. They register in the router preset's scope only, so no other session
+ * sees them, and return plain text for the model.
  * @module dsh-assisstant/host/assistant-tools
  */
 
-import { existsSync, mkdirSync, realpathSync, renameSync, statSync } from 'node:fs'
-import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Person } from '../shared/settings.ts'
 import { assistantSettings } from '../shared/settings.ts'
 import { recordToolTitle } from '../shared/record-tools.ts'
 import { local, zonedToUtc } from './ddl.ts'
+import { INBOX_FOLDER, copyFromInbox } from './inbox.ts'
 import { inDailyQuiet, quietSpanAt } from './quiet.ts'
 import { invalidTiming } from './records/calendar.ts'
 import type { AssistantService } from './service.ts'
 import type { AgentLike } from './types.ts'
-
-/** The folder things from a chat app are saved in. */
-export const TEMP_FOLDER = 'temp'
 
 /** The furthest ahead a wake-up may be, in minutes. */
 const MAX_WAKE_MINUTES = 30 * 24 * 60
@@ -38,8 +35,8 @@ const OUTPUT = {
   render: (_args: unknown, value: { message: string }) => [{ type: 'text' as const, text: value.message }],
 } as const
 
-/** What is left to do after sending: the text of a turn no chat message started stays in the app, so this copy reaches only the app. */
-const SHOW_IN_APP = 'Now end the turn by writing the same words as your reply, without <keep> markers, so the app shows them too. That copy does not go to WeChat.'
+/** How a reply bound for the chat app is written. */
+const CHAT_FORMAT = 'Write it as a short chat message in plain text, without Markdown; wrap a list or steps that must stay in one message in <keep> and </keep>.'
 
 const DATE_HINT = 'YYYY-MM-DD, their local date'
 const TIME_HINT = 'HH:MM, 24-hour, their local time'
@@ -63,39 +60,6 @@ export interface AssistantToolDeps {
 /** @returns a pending-call card with a plain title; the user reads it in the conversation. */
 function card(title: string) {
   return { card: 'generic' as const, title, kind: 'other' as const }
-}
-
-/**
- * Move a file out of the workspace's `temp/`.
- * @param root - the workspace folder.
- * @param file - the file: its name, its path from the workspace, or its full path.
- * @param to - a folder inside the workspace, created when missing.
- * @returns what became of it.
- */
-export function moveFromTemp(root: string, file: string, to: string): Outcome {
-  const temp = resolve(root, TEMP_FOLDER)
-  const source = isAbsolute(file) ? resolve(file) : file.split(/[/\\]/u)[0] === TEMP_FOLDER ? resolve(root, file) : resolve(temp, file)
-  const inside = (folder: string, path: string): boolean => {
-    const rest = relative(folder, path)
-    return rest !== '' && !rest.startsWith('..') && !isAbsolute(rest)
-  }
-  if (!inside(temp, source)) return { ok: false, message: `Only files in ${TEMP_FOLDER}/ can be moved with this tool.` }
-  if (!existsSync(source) || !statSync(source).isFile()) return { ok: false, message: `There is no file ${relative(root, source)}.` }
-  const folder = isAbsolute(to) ? resolve(to) : resolve(root, to)
-  if (!inside(root, folder) && folder !== resolve(root)) return { ok: false, message: 'The target must be a folder inside the workspace.' }
-  if (folder === temp || inside(temp, folder)) return { ok: false, message: `The target must be outside ${TEMP_FOLDER}/.` }
-  mkdirSync(folder, { recursive: true })
-  // A link inside the workspace may point out of it.
-  const real = realpathSync(folder)
-  const realRoot = realpathSync(root)
-  if (real !== realRoot && !real.startsWith(`${realRoot}${sep}`)) return { ok: false, message: 'The target must be a folder inside the workspace.' }
-  const name = basename(source)
-  const extension = extname(name)
-  const base = name.slice(0, name.length - extension.length)
-  let target = join(folder, name)
-  for (let index = 1; existsSync(target); index += 1) target = join(folder, `${base}-${index}${extension}`)
-  renameSync(source, target)
-  return { ok: true, message: `Moved to ${relative(root, target)}.` }
 }
 
 /** @returns the instant a wake-up asks for, or why it cannot be used. */
@@ -140,22 +104,29 @@ export function assistantTools(deps: AssistantToolDeps): unknown[] {
 
   return [
     defineTool({
-      name: 'im_send',
-      description: 'Send a message to the user\'s chat app (WeChat). Everything they must see goes out this way unless you are answering a message they just sent from that app. '
-        + 'It is cut into short chat messages at sentence breaks; wrap a list or steps that must stay together in <keep> and </keep>. In quiet hours the host holds it and sends it when they end.',
+      name: 'im_route',
+      description: 'Choose whether your final reply in this turn also goes to the user\'s chat app (WeChat). By default it goes there only when a message from that app started the turn; '
+        + 'call this with send true for anything else they must see (a reminder, the daily brief, a worker\'s result, a question), or with send false to keep a reply to a chat message in the app only. '
+        + 'Then write the reply as usual: the same text shows in the app.',
       parameters: {
-        text: { type: 'string', required: true, description: 'Plain text in their language, as you would say it in a chat: short, no Markdown.' },
+        send: { type: 'boolean', required: true, description: 'true: the reply goes to the chat app too (in quiet hours it waits for their end, unless the user is talking to you or asked for this moment). false: it stays in the app only.' },
       },
       output: OUTPUT,
-      presentCall: args => card(recordToolTitle('im_send', args)),
-      execute: (args, exec) => run(exec, (person, agent, now) => {
-        if (args.text.trim() === '') return { ok: false, message: 'There is nothing to send.' }
-        const outcome = deps.service.sendToChat(person, agent.session.id, args.text)
-        if (outcome.status === 'unavailable') return { ok: false, message: 'No chat app is connected, so nothing was sent. Write it as your reply instead.' }
-        if (outcome.status === 'held') {
-          return { ok: true, message: `It is quiet hours, so this waits and goes out by itself at ${shortTime(outcome.until ?? now, deps.zone(agent))}. Do not send it again. ${SHOW_IN_APP}` }
+      presentCall: args => card(recordToolTitle('im_route', args)),
+      execute: (args, exec) => run(exec, (person, agent) => {
+        const outcome = deps.service.routeChat(person, agent.session.id, args.send)
+        switch (outcome.status) {
+          case 'unavailable':
+            return { ok: false, message: 'No chat app is connected, so your reply stays in the app. Write it as usual.' }
+          case 'no-turn':
+            return { ok: false, message: 'No turn of this conversation is running, so nothing was routed.' }
+          case 'kept':
+            return { ok: true, message: 'Your final reply in this turn stays in the app only.' }
+          case 'held':
+            return { ok: true, message: `It is quiet hours: your final reply shows in the app now and goes to WeChat by itself at ${shortTime(outcome.until, deps.zone(agent))}. ${CHAT_FORMAT}` }
+          default:
+            return { ok: true, message: `Your final reply in this turn goes to WeChat too. ${CHAT_FORMAT}` }
         }
-        return { ok: true, message: `Sent. ${SHOW_IN_APP}` }
       }),
     }),
     defineTool({
@@ -292,17 +263,17 @@ export function assistantTools(deps: AssistantToolDeps): unknown[] {
       }),
     }),
     defineTool({
-      name: 'temp_move',
-      description: `Move a file from ${TEMP_FOLDER}/, where what the user sends from a chat app lands, to a folder in the workspace, such as the one a worker will use.`,
+      name: 'media_copy',
+      description: `Copy a file the user sent from a chat app out of ${INBOX_FOLDER}/ into a folder of the workspace, before you or a worker use it. Files in ${INBOX_FOLDER}/ are removed after some days, so nobody works on them there.`,
       parameters: {
-        file: { type: 'string', required: true, description: `The file: its name in ${TEMP_FOLDER}/, or the path the message gave.` },
-        to: { type: 'string', required: true, description: 'The folder, relative to the workspace, such as projects/装修. Created when missing.' },
+        file: { type: 'string', required: true, description: 'The file: the path their message gave, or its name in the WeChat inbox.' },
+        to: { type: 'string', required: true, description: 'The folder, relative to the workspace, such as projects/装修 or files. Created when missing; never inside the inbox.' },
       },
       output: OUTPUT,
-      presentCall: args => card(recordToolTitle('temp_move', args)),
+      presentCall: args => card(recordToolTitle('media_copy', args)),
       execute: (args, exec) => run(exec, (person) => {
         if (person.cwd === undefined) return { ok: false, message: 'This assistant has no workspace.' }
-        return moveFromTemp(person.cwd, args.file, args.to)
+        return copyFromInbox(person.cwd, args.file, args.to)
       }),
     }),
   ]

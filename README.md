@@ -38,10 +38,10 @@ Two hidden agent presets, one visible conversation:
 - Records as plain files in the workspace: schedule (`ddl.md`), lists, memos, logs, profile, persona, projects. Passwords, card numbers, and ID numbers are never recorded.
 - A schedule with reminders and a `/ddl` week view, a daily brief every morning, and a watchdog.
 - A heartbeat instead of automation tasks: the assistant wakes on its own every hour, and to the minute for what is due, and it can set its own wake-ups. Whether a heartbeat with nothing due calls the model is a setting.
-- Quiet hours, daily and temporary. Reminders inside them move to the evening before or the next morning; other messages wait. The assistant changes them only when you ask.
+- Quiet hours, daily and temporary. Reminders inside them move to the evening before or the next morning; other WeChat messages wait for their end. The assistant changes them only when you ask.
 - Your own time zone in the profile, worked out from where you say you are and from your schedule, never from the device.
 - A balance reminder for the DeepSeek account, with configurable wording.
-- WeChat through `im-robot`: scan to bind, and the assistant introduces itself; then chat from WeChat in the same conversation. Everything you need to see reaches WeChat, wherever you last wrote. Images, files, voice, and video you send land in `temp/` in the workspace, and replies are text split into short messages.
+- WeChat through `im-robot`: scan to bind, and the assistant introduces itself; then chat from WeChat in the same conversation. The assistant decides for each reply whether it also goes to WeChat, so what you need to see reaches you there wherever you last wrote. Images, files, voice, and video you send are shown in the conversation and saved in the workspace's `IM/WeChat/` for 30 days (adjustable; 0 keeps them); the assistant copies a file out before working on it. Replies are text split into short messages.
 - Tool isolation in both directions.
 
 ## Settings
@@ -70,7 +70,7 @@ Next: single-window self-management for the parent agent — its own context, mo
 
 - The sidebar's content search can still find assistant conversations.
 - Heartbeats stop while the app is closed or the computer sleeps; what is still ahead is given on waking.
-- Files in `temp/` are not cleaned up automatically.
+- The app keeps its own copy of every image and file shown in a conversation, even after `IM/WeChat/` has removed the original.
 - Only tools are isolated; global prompt contexts injected by other plugins are not filtered.
 - The assistant cannot send images or files to WeChat yet. Voice stays as raw SILK audio, with WeChat's transcript as its text.
 - Workers cannot modify anything outside their workspace; on DSH 0.2.1-rc.5 an approved path only reaches the write/edit tools, not shell commands.

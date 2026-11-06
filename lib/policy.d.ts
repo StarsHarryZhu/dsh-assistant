@@ -13,8 +13,9 @@
  *   ask); the model and effort are whatever the composer chose for this
  *   conversation;
  * - only complete-subagent's delegation and review tools among global tools;
- * - the record tools, its own tools (the chat app, wake-ups, quiet hours, moving
- *   files out of `temp/`), the `balance_check` tool, and the `/ddl` command,
+ * - the record tools, its own tools (routing a reply to the chat app, wake-ups,
+ *   quiet hours, the brief's time, copying files out of the chat inbox `IM/`),
+ *   the `balance_check` tool, and the `/ddl` command,
  *   which prints the week view itself.
  *
  * `role: worker` (the `dsh-assisstant-worker` preset every `delegate` child

@@ -43,7 +43,7 @@ describe('the router policy', () => {
     expect(contexts.map(context => context.name)).toEqual([
       'dsh-assisstant:calendar', 'dsh-assisstant:workspace', 'dsh-assisstant:schedule', 'dsh-assisstant:balance', 'dsh-assisstant:channel', 'dsh-assisstant:permission', 'dsh-assisstant:heartbeat',
     ])
-    expect(tools.scoped.map(tool => tool.name).sort()).toEqual(['balance_check', 'brief_set', 'calendar_add', 'calendar_update', 'im_send', 'list_update', 'log_add', 'memo_set', 'persona_set', 'profile_set', 'project_update', 'quiet_set', 'recall', 'temp_move', 'wake_after', 'wake_cancel'])
+    expect(tools.scoped.map(tool => tool.name).sort()).toEqual(['balance_check', 'brief_set', 'calendar_add', 'calendar_update', 'im_route', 'list_update', 'log_add', 'media_copy', 'memo_set', 'persona_set', 'profile_set', 'project_update', 'quiet_set', 'recall', 'wake_after', 'wake_cancel'])
     expect(commands.map(command => command.name)).toEqual(['ddl'])
   })
 
@@ -178,14 +178,15 @@ describe('the router policy', () => {
     service.chatConnected = () => true
     const fromApp = channelText(service, 's')
     expect(fromApp).toContain('came from the app')
-    expect(fromApp).toContain('with no WeChat markers')
-    expect(fromApp).toContain('only `im_send` reaches them')
+    expect(fromApp).toContain('without WeChat markers')
+    expect(fromApp).toContain('yours to choose with `im_route`')
+    expect(fromApp).toContain('every other reply stays in the app')
     service.markInput('s', 'wechat')
     const fromChat = channelText(service, 's')
     expect(fromChat).toContain('goes back there by itself')
     expect(fromChat).toContain('at most 100 characters each')
     expect(fromChat).toContain('<keep> and </keep>')
-    expect(fromChat).toContain('only `im_send` reaches them')
+    expect(fromChat).toContain('send false to keep a reply to a WeChat message in the app only')
   })
 
   it('shows the heartbeat, the quiet hours, and the wake-ups as they stand', () => {

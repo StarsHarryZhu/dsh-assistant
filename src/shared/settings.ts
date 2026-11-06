@@ -66,6 +66,7 @@ export const ASSISTANT_DEFAULTS = {
   watchdogStallMinutes: 10,
   wechatEnabled: true,
   wechatReplyMaxChars: 100,
+  wechatMediaDays: 30,
 } as const
 
 /** The settings each assistant has for itself. */
@@ -90,10 +91,15 @@ export interface AssistantSettings {
   readonly watchdogStallMinutes: number
   readonly wechatEnabled: boolean
   readonly wechatReplyMaxChars: number
+  /** Days the files sent from WeChat stay in the workspace's `IM/WeChat/`; 0 keeps them for good. */
+  readonly wechatMediaDays: number
 }
 
 /** The shortest WeChat message the settings allow (im-robot's own minimum). */
 export const MIN_WECHAT_REPLY_CHARS = 10
+
+/** The longest time WeChat files may be kept other than for good (0): ten years. */
+export const MAX_WECHAT_MEDIA_DAYS = 3650
 
 /** The shortest heartbeat interval other than 0 (off), in minutes. */
 export const MIN_HEARTBEAT_MINUTES = 5
@@ -240,6 +246,11 @@ function heartbeatInterval(value: unknown): number | undefined {
   return minutes === 0 || (minutes >= MIN_HEARTBEAT_MINUTES && minutes <= MAX_HEARTBEAT_MINUTES) ? minutes : undefined
 }
 
+/** @returns a usable number of days to keep WeChat files: 0, or within the bound. */
+function mediaDays(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= MAX_WECHAT_MEDIA_DAYS ? value : undefined
+}
+
 /** @returns a usable instant, epoch milliseconds. */
 function instant(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
@@ -266,6 +277,7 @@ export function readAssistantSettings(value: unknown): Partial<AssistantSettings
     ...fieldOf('watchdogStallMinutes', atLeast(record.watchdogStallMinutes, MIN_WATCHDOG_MINUTES)),
     ...fieldOf('wechatEnabled', typeof record.wechatEnabled === 'boolean' ? record.wechatEnabled : undefined),
     ...fieldOf('wechatReplyMaxChars', atLeast(record.wechatReplyMaxChars, MIN_WECHAT_REPLY_CHARS)),
+    ...fieldOf('wechatMediaDays', mediaDays(record.wechatMediaDays)),
   }
   return Object.keys(fields).length === 0 ? undefined : fields
 }

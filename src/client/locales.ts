@@ -118,6 +118,7 @@ export const zh: Record<string, string> = {
   'settings.watchdogStallMinutes': '多少分钟没有进展就自动停下',
   'settings.wechatEnabled': '回复已绑定的微信',
   'settings.wechatReplyMaxChars': '微信单条消息最长（字）',
+  'settings.wechatMediaDays': '微信发来的图片和文件在工作区 IM/WeChat 里保留几天（0 表示一直保留）',
   'settings.shared': '通用设置',
   'settings.delete': '删除',
   'settings.delete.assistant': '删除这个助理',

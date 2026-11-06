@@ -30,7 +30,7 @@ export function greetingText(person: Pick<Person, 'zoneHint'>): string {
  * @returns the system note.
  */
 export function introductionText(): string {
-  return `${SYSTEM_PREFIX} The user has just connected their WeChat to you. Send them a short introduction there with im_send, right now: one or two plain sentences with your name, and that they can talk to you there just as here. They did this themselves, so quiet hours do not apply. Write nothing else, and do not mention that this is a system message.`
+  return `${SYSTEM_PREFIX} The user has just connected their WeChat to you. Call im_route with send true, then introduce yourself in your reply: one or two plain sentences with your name, and that they can talk to you there just as here. It goes to their WeChat and shows here too. They did this themselves, so quiet hours do not apply. Write nothing else, and do not mention that this is a system message.`
 }
 
 /** @returns the people that still need a conversation and have a folder to hold it. */

@@ -72,11 +72,16 @@ export async function sendHostNote(controller: Pick<SessionControllerLike, 'reso
 /** Where a session's latest user input came from. */
 export type InputChannel = 'web' | 'wechat'
 
-/** What became of a message for the user's chat app. */
-export type ChatOutcome =
-  | { readonly status: 'sent' }
-  /** Quiet hours are on, so the host sends it when they end. */
+/** What became of routing a turn's reply. */
+export type RouteOutcome =
+  /** The reply goes to the chat app when the turn ends. */
+  | { readonly status: 'routed' }
+  /** Quiet hours are on: the reply goes to the chat app when they end. */
   | { readonly status: 'held'; readonly until: number }
+  /** The reply stays in the app. */
+  | { readonly status: 'kept' }
+  /** No turn of the conversation is running. */
+  | { readonly status: 'no-turn' }
   /** No chat app is connected and switched on. */
   | { readonly status: 'unavailable' }
 
@@ -93,8 +98,11 @@ export interface AssistantService {
   zoneFor(session: SessionLike | undefined): string
   /** Whether a chat app is connected and switched on for this assistant. */
   chatConnected(person: Person): boolean
-  /** Send to the user's chat app now, or at the end of quiet hours unless this turn may reach them inside them. */
-  sendToChat(person: Person, sessionId: string, text: string): ChatOutcome
+  /**
+   * Route the running turn's final reply: to the chat app as well (at the end
+   * of quiet hours, unless this turn may reach them inside them), or the app only.
+   */
+  routeChat(person: Person, sessionId: string, send: boolean): RouteOutcome
   /** Whether the session's running turn holds a message from the user, on any channel. */
   turnFromUser(sessionId: string): boolean
   /** The wake-ups an assistant has waiting, soonest first. */

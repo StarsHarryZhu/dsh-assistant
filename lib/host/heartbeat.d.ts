@@ -11,10 +11,10 @@
  *   while `heartbeatIdleWake` is on when nothing else is due.
  *
  * Inside quiet hours nothing fires but a wake-up the user asked to come through
- * them. A chat message the model sent in quiet hours waits here, and goes out when
- * they end without calling the model. Each assistant's state is a file in the
- * plugin's data folder, so a restart repeats nothing and misses nothing that is
- * still ahead.
+ * them; a reply routed to the chat app in them waits in im-robot's outbox
+ * until they end. Once a day it also has old files of the chat inbox removed.
+ * Each assistant's state is a file in the plugin's data folder, so a restart
+ * repeats nothing and misses nothing that is still ahead.
  * @module dsh-assisstant/host/heartbeat
  */
 import type { Person } from '../shared/settings.ts';
@@ -49,8 +49,8 @@ export interface HeartbeatDeps {
     chatConnected(person: Person): boolean;
     /** Send a note into the assistant conversation. */
     sendNote(sessionId: string, text: string): void;
-    /** Send a held message to the chat app; false when it can no longer go out. */
-    sendHeld(person: Person, text: string): boolean;
+    /** Remove the assistant's old chat inbox files; called once a day. */
+    prune?(person: Person): void;
     warn(message: string): void;
     /** The folder of the state files. */
     directory: string;
@@ -99,8 +99,6 @@ export declare class Heartbeat {
      * @returns those removed.
      */
     cancelWakes(personId: string, match: string): WakeRequest[];
-    /** Keep a chat message until quiet hours end. */
-    hold(personId: string, text: string): void;
     /** Forget a removed assistant. */
     forget(personId: string): void;
     /**
@@ -115,6 +113,4 @@ export declare class Heartbeat {
     private nextBeat;
     /** @returns the reminders whose time has come since the last look. */
     private dueReminders;
-    /** Send what waited for quiet hours to end; what can no longer go out is dropped with a log line. */
-    private flushHeld;
 }

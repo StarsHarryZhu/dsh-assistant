@@ -316,7 +316,7 @@ describe('the browser half', () => {
     const { registrations, find } = loadClient(fakeForm({}).form)
     expect(registrations.filter(entry => entry.name === 'tool.call.toolview').map(entry => entry.key)).toEqual([
       'calendar_add', 'calendar_update', 'list_update', 'memo_set', 'log_add', 'project_update', 'recall', 'profile_set', 'persona_set',
-      'im_send', 'wake_after', 'wake_cancel', 'quiet_set', 'brief_set', 'temp_move',
+      'im_route', 'wake_after', 'wake_cancel', 'quiet_set', 'brief_set', 'media_copy',
     ])
     const Row = find('tool.call.toolview', 'calendar_add')
     const settled = render(<Row toolName="calendar_add" phase="result" block={{ kind: 'ok', call: { argsRaw: '{"title":"看牙医","kind":"日程"}' } }} />)

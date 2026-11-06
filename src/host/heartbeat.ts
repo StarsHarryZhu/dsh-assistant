@@ -11,10 +11,10 @@
  *   while `heartbeatIdleWake` is on when nothing else is due.
  *
  * Inside quiet hours nothing fires but a wake-up the user asked to come through
- * them. A chat message the model sent in quiet hours waits here, and goes out when
- * they end without calling the model. Each assistant's state is a file in the
- * plugin's data folder, so a restart repeats nothing and misses nothing that is
- * still ahead.
+ * them; a reply routed to the chat app in them waits in im-robot's outbox
+ * until they end. Once a day it also has old files of the chat inbox removed.
+ * Each assistant's state is a file in the plugin's data folder, so a restart
+ * repeats nothing and misses nothing that is still ahead.
  * @module dsh-assisstant/host/heartbeat
  */
 
@@ -30,6 +30,7 @@ import { quietSpanAt, remindAt } from './quiet.ts'
 import { CALENDAR_FILE, hasClockTime, isMuted } from './records/calendar.ts'
 import type { ReminderRecordLike, ScheduleLike } from './types.ts'
 import { SYSTEM_PREFIX } from './watchdog.ts'
+import { SILENT_REPLY } from '../shared/silent.ts'
 
 /**
  * Remove a session's automation tasks, which earlier versions used for reminders and the heartbeat replaces.
@@ -60,12 +61,6 @@ export interface WakeRequest {
   readonly throughQuiet: boolean
 }
 
-/** A chat message waiting for quiet hours to end. */
-interface HeldMessage {
-  readonly text: string
-  readonly at: number
-}
-
 /** What is kept about one assistant between ticks and restarts. */
 interface HeartbeatState {
   /** Up to when reminders have been looked at. */
@@ -73,10 +68,11 @@ interface HeartbeatState {
   lastBeatAt?: number
   /** The local date of the latest daily brief. */
   briefDate?: string
+  /** The local date the chat inbox was last cleared of old files. */
+  prunedDate?: string
   /** Reminders already given: item key → when the event starts. */
   reminded: Record<string, number>
   wakes: WakeRequest[]
-  held: HeldMessage[]
 }
 
 /** What the heartbeat needs from the plugin. */
@@ -93,8 +89,8 @@ export interface HeartbeatDeps {
   chatConnected(person: Person): boolean
   /** Send a note into the assistant conversation. */
   sendNote(sessionId: string, text: string): void
-  /** Send a held message to the chat app; false when it can no longer go out. */
-  sendHeld(person: Person, text: string): boolean
+  /** Remove the assistant's old chat inbox files; called once a day. */
+  prune?(person: Person): void
   warn(message: string): void
   /** The folder of the state files. */
   directory: string
@@ -164,10 +160,10 @@ export function heartbeatText(parts: NoteParts): string {
     if (parts.inQuiet) lines.push('They asked for this during their quiet hours, so it may reach them now.')
   }
   if (!due) {
-    lines.push('', 'Nothing is due. Use this moment only if something really needs doing: a follow-up you promised, or signs in the schedule that they have moved to another time zone, which you record in the profile. Otherwise end this turn without any text at all.')
+    lines.push('', `Nothing is due. Use this moment only if something really needs doing: a follow-up you promised, or signs in the schedule that they have moved to another time zone, which you record in the profile. Otherwise reply with exactly ${SILENT_REPLY} and nothing else: not a line saying that nothing is due. The app hides that reply.`)
   }
   lines.push('', parts.chat
-    ? 'What they must see goes out with `im_send`: text you merely write stays in the app, where they may not look. Then write the same words as your reply, so the app shows them too.'
+    ? 'Your reply in this turn stays in the app, where they may not look. When they must see it, call `im_route` with send true before you write it, and it goes to WeChat as well.'
     : 'Write what they must see as your reply; it stays in the app.')
   return lines.join('\n')
 }
@@ -182,15 +178,13 @@ function readState(value: unknown): HeartbeatState {
   const wakes = (Array.isArray(record.wakes) ? record.wakes as WakeRequest[] : [])
     .filter(wake => typeof wake?.id === 'string' && typeof wake.at === 'number' && typeof wake.reason === 'string')
     .map(wake => ({ id: wake.id, at: wake.at, reason: wake.reason, throughQuiet: wake.throughQuiet === true }))
-  const held = (Array.isArray(record.held) ? record.held as HeldMessage[] : [])
-    .filter(message => typeof message?.text === 'string' && typeof message.at === 'number')
   return {
     ...(lastCheckedAt === undefined ? {} : { lastCheckedAt }),
     ...(lastBeatAt === undefined ? {} : { lastBeatAt }),
     ...(typeof record.briefDate === 'string' ? { briefDate: record.briefDate } : {}),
+    ...(typeof record.prunedDate === 'string' ? { prunedDate: record.prunedDate } : {}),
     reminded,
     wakes,
-    held,
   }
 }
 
@@ -282,12 +276,6 @@ export class Heartbeat {
     return removed
   }
 
-  /** Keep a chat message until quiet hours end. */
-  hold(personId: string, text: string): void {
-    this.stateOf(personId).held.push({ text, at: this.deps.now() })
-    this.save(personId)
-  }
-
   /** Forget a removed assistant. */
   forget(personId: string): void {
     this.states.delete(personId)
@@ -327,8 +315,17 @@ export class Heartbeat {
       return false
     }
 
+    if (state.prunedDate !== today.iso && this.deps.prune !== undefined) {
+      state.prunedDate = today.iso
+      this.save(person.id)
+      try {
+        this.deps.prune(person)
+      } catch (error) {
+        this.deps.warn(`could not clear old chat files of ${person.name}: ${String(error)}`)
+      }
+    }
+
     const quiet = quietSpanAt(settings, now, zone) !== undefined
-    if (!quiet) this.flushHeld(person, state)
     if (this.deps.running(sessionId)) return false
 
     const wakes = state.wakes.filter(wake => wake.at <= now && (!quiet || wake.throughQuiet))
@@ -402,22 +399,6 @@ export class Heartbeat {
       }
     }
     return due.sort((a, b) => a.event - b.event)
-  }
-
-  /** Send what waited for quiet hours to end; what can no longer go out is dropped with a log line. */
-  private flushHeld(person: Person, state: HeartbeatState): void {
-    if (state.held.length === 0) return
-    for (const message of state.held) {
-      let sent = false
-      try {
-        sent = this.deps.sendHeld(person, message.text)
-      } catch (error) {
-        this.deps.warn(`could not send a held message of ${person.name}: ${String(error)}`)
-      }
-      if (!sent) this.deps.warn(`a held message of ${person.name} could not go out and was dropped`)
-    }
-    state.held = []
-    this.save(person.id)
   }
 }
 

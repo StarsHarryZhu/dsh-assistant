@@ -26,7 +26,7 @@ import { ASSISTANT_DEFAULTS, COMPACT_RATIO_RANGE, DEFAULTS, DEFAULT_WORKER_MODEL
 import type { Person, WechatState, WorkerModel } from './shared/settings.ts'
 import { queryBalance } from './host/balance.ts'
 import type { BalanceState } from './host/balance.ts'
-import { TEMP_FOLDER } from './host/assistant-tools.ts'
+import { pruneOldFiles, wechatFolder } from './host/inbox.ts'
 import { processZone } from './host/calendar.ts'
 import { Heartbeat, clearAutomationTasks } from './host/heartbeat.ts'
 import { hidePreset } from './host/hide-preset.ts'
@@ -194,19 +194,7 @@ export function apply(ctx: Context, config: Config): void {
   const chatConnected = (person: Person): boolean =>
     assistantSettings(person).wechatEnabled
     && readWechatStates(live(config?.wechatState))[person.id]?.status === 'bound'
-    && typeof host.get('imRobot')?.send === 'function'
-  /** Send to the chat app, logging instead of throwing; false when it could not go out. */
-  const sendNow = (person: Person, text: string): boolean => {
-    try {
-      const robot = host.get('imRobot')
-      if (robot?.send === undefined) return false
-      robot.send(person.id, text)
-      return true
-    } catch (error) {
-      warn(`could not send to the chat app of ${person.name}: ${String(error)}`)
-      return false
-    }
-  }
+    && typeof host.get('imRobot')?.route === 'function'
 
   const refreshBalance = async (): Promise<BalanceState> => {
     balance = await queryBalance({
@@ -226,14 +214,14 @@ export function apply(ctx: Context, config: Config): void {
     markInput: (sessionId, channel) => { inputs.set(sessionId, channel) },
     zoneFor: session => zoneOfFolder(session === undefined ? undefined : service.personForSession(session.id)?.cwd ?? session.header.cwd),
     chatConnected,
-    sendToChat: (person, sessionId, text) => {
-      if (!chatConnected(person)) return { status: 'unavailable' }
+    routeChat: (person, sessionId, send) => {
+      const robot = host.get('imRobot')
+      if (!chatConnected(person) || robot?.route === undefined) return { status: 'unavailable' }
+      if (!send) return robot.route(person.id, { chat: false }) ? { status: 'kept' } : { status: 'no-turn' }
       const quiet = quietSpanAt(assistantSettings(person), Date.now(), zoneOfFolder(person.cwd))
-      if (quiet !== undefined && !userTurns.has(sessionId) && !quietPasses.has(sessionId)) {
-        heartbeat.hold(person.id, text)
-        return { status: 'held', until: quiet.end }
-      }
-      return sendNow(person, text) ? { status: 'sent' } : { status: 'unavailable' }
+      const held = quiet !== undefined && !userTurns.has(sessionId) && !quietPasses.has(sessionId)
+      if (!robot.route(person.id, held ? { chat: true, notBefore: quiet.end } : { chat: true })) return { status: 'no-turn' }
+      return held ? { status: 'held', until: quiet.end } : { status: 'routed' }
     },
     turnFromUser: sessionId => userTurns.has(sessionId),
     wakes: person => heartbeat.wakes(person.id),
@@ -344,7 +332,7 @@ export function apply(ctx: Context, config: Config): void {
     return {
       enabled: wechatEnabled,
       replyMaxChars: wechatReplyMaxChars,
-      ...(person.cwd === undefined ? {} : { mediaDir: join(person.cwd, TEMP_FOLDER) }),
+      ...(person.cwd === undefined ? {} : { mediaDir: wechatFolder(person.cwd) }),
     }
   }
   /** Give each bound account its assistant's options; an account not logged in has none to change. */
@@ -424,7 +412,11 @@ export function apply(ctx: Context, config: Config): void {
       if (person !== undefined && quietSpanAt(assistantSettings(person), Date.now(), zoneOfFolder(person.cwd)) !== undefined) quietPasses.add(sessionId)
       note(sessionId, text)
     },
-    sendHeld: sendNow,
+    prune: (person) => {
+      if (person.cwd === undefined) return
+      const removed = pruneOldFiles(wechatFolder(person.cwd), assistantSettings(person).wechatMediaDays, Date.now())
+      if (removed > 0) ctx.logger.info(`removed ${removed} WeChat file(s) of ${person.name} older than ${assistantSettings(person).wechatMediaDays} days`)
+    },
     warn,
     directory: join(dataDirectory(), 'heartbeat'),
   })

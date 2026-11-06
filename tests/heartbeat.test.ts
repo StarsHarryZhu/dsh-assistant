@@ -20,9 +20,9 @@ function setup(settings: Partial<AssistantSettings> = {}, options: { now?: strin
     chat: false,
     people: [person],
     notes: [] as string[],
-    sent: [] as string[],
+    pruned: [] as string[],
     warnings: [] as string[],
-    canSend: true,
+    failPrune: false,
   }
   const directory = options.directory ?? mkdtempSync(join(tmpdir(), 'dsa-heartbeat-'))
   const make = () => new Heartbeat({
@@ -33,9 +33,9 @@ function setup(settings: Partial<AssistantSettings> = {}, options: { now?: strin
     running: () => world.running,
     chatConnected: () => world.chat,
     sendNote: (_sessionId, text) => { world.notes.push(text) },
-    sendHeld: (_person, text) => {
-      world.sent.push(text)
-      return world.canSend
+    prune: (person) => {
+      if (world.failPrune) throw new Error('disk gone')
+      world.pruned.push(`${person.id}@${new Date(world.now).toISOString().slice(0, 16)}`)
     },
     warn: (message) => { world.warnings.push(message) },
     directory,
@@ -270,29 +270,6 @@ describe('quiet hours', () => {
     expect(beat.wakes('mom')).toEqual([])
   })
 
-  it('hold chat messages and send them at their end, without the model', () => {
-    const { world, beat, until } = setup({ ...quiet, heartbeatMinutes: 0 }, { now: '2026-11-05T23:00' })
-    beat.hold('mom', '任务做完了')
-    until('2026-11-06T07:59')
-    expect(world.sent).toEqual([])
-    until('2026-11-06T08:00')
-    expect(world.sent).toEqual(['任务做完了'])
-    expect(world.notes).toEqual([])
-    until('2026-11-06T09:00')
-    expect(world.sent).toEqual(['任务做完了'])
-  })
-
-  it('drop with a log line a held message that can no longer go out', () => {
-    const { world, beat, until } = setup({ ...quiet, heartbeatMinutes: 0 }, { now: '2026-11-05T23:00' })
-    world.canSend = false
-    beat.hold('mom', '发不出去')
-    until('2026-11-06T08:00')
-    expect(world.warnings.join()).toContain('could not go out')
-    world.warnings.length = 0
-    until('2026-11-06T09:00')
-    expect(world.warnings).toEqual([])
-  })
-
   it('include temporary ones', () => {
     const { world, until } = setup({ ...quiet, quietStart: '', quietEnd: '', tempQuietFrom: at('2026-11-05T13:00'), tempQuietUntil: at('2026-11-05T15:00') })
     until('2026-11-05T13:00')
@@ -315,7 +292,7 @@ describe('the heartbeat itself', () => {
     expect(world.notes).toHaveLength(1)
     expect(world.notes[0]).toMatch(/^\[assistant-system\] Heartbeat\./u)
     expect(world.notes[0]).toContain('Nothing is due')
-    expect(world.notes[0]).toContain('without any text')
+    expect(world.notes[0]).toContain('reply with exactly [silent] and nothing else: not a line saying that nothing is due')
     until('2026-11-05T13:00')
     expect(world.notes).toHaveLength(2)
   })
@@ -357,13 +334,29 @@ describe('the heartbeat itself', () => {
     expect(world.notes[0]).toContain('Write what they must see as your reply')
     world.chat = true
     until('2026-11-05T13:00')
-    expect(world.notes[1]).toContain('goes out with `im_send`')
+    expect(world.notes[1]).toContain('call `im_route` with send true before you write it')
   })
 
   it('says when the next one comes, past quiet hours', () => {
     const text = heartbeatText({ now: at('2026-11-05T21:30'), zone: ZONE, nextBeat: at('2026-11-06T08:00'), reminders: [], wakes: [], chat: false, inQuiet: false })
     expect(text).toContain('Local time 2026-11-05 周四 21:30 (Asia/Shanghai)')
     expect(text).toContain('Next heartbeat around 11/06 周五 08:00')
+  })
+})
+
+describe('clearing the chat inbox', () => {
+  it('happens once a local day, quiet hours or not, and a failure is only logged', () => {
+    const { world, until } = setup({ quietStart: '22:00', quietEnd: '08:00', heartbeatMinutes: 0 }, { now: '2026-11-05T21:00' })
+    until('2026-11-05T23:00')
+    expect(world.pruned).toEqual(['mom@2026-11-05T13:01'])
+    until('2026-11-06T00:01')
+    expect(world.pruned).toEqual(['mom@2026-11-05T13:01', 'mom@2026-11-05T16:00'])
+    world.failPrune = true
+    until('2026-11-07T00:00')
+    expect(world.warnings.join()).toContain('could not clear old chat files of 阿福: Error: disk gone')
+    world.warnings.length = 0
+    until('2026-11-07T00:30')
+    expect(world.warnings).toEqual([])
   })
 })
 

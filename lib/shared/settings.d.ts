@@ -55,6 +55,7 @@ export declare const ASSISTANT_DEFAULTS: {
     readonly watchdogStallMinutes: 10;
     readonly wechatEnabled: true;
     readonly wechatReplyMaxChars: 100;
+    readonly wechatMediaDays: 30;
 };
 /** The settings each assistant has for itself. */
 export interface AssistantSettings {
@@ -78,9 +79,13 @@ export interface AssistantSettings {
     readonly watchdogStallMinutes: number;
     readonly wechatEnabled: boolean;
     readonly wechatReplyMaxChars: number;
+    /** Days the files sent from WeChat stay in the workspace's `IM/WeChat/`; 0 keeps them for good. */
+    readonly wechatMediaDays: number;
 }
 /** The shortest WeChat message the settings allow (im-robot's own minimum). */
 export declare const MIN_WECHAT_REPLY_CHARS = 10;
+/** The longest time WeChat files may be kept other than for good (0): ten years. */
+export declare const MAX_WECHAT_MEDIA_DAYS = 3650;
 /** The shortest heartbeat interval other than 0 (off), in minutes. */
 export declare const MIN_HEARTBEAT_MINUTES = 5;
 /** The longest heartbeat interval: a day. */

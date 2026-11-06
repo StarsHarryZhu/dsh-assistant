@@ -15,12 +15,12 @@ declare const TITLES: {
     readonly recall: readonly ["查记录", undefined];
     readonly profile_set: readonly ["记下你的信息", undefined];
     readonly persona_set: readonly ["调整说话方式", undefined];
-    readonly im_send: readonly ["发到微信", "text"];
+    readonly im_route: readonly ["回复也发到微信", undefined];
     readonly wake_after: readonly ["稍后再看", "reason"];
     readonly wake_cancel: readonly ["取消稍后再看", "match"];
     readonly quiet_set: readonly ["改勿扰时间", undefined];
     readonly brief_set: readonly ["改早上提示时间", "time"];
-    readonly temp_move: readonly ["整理文件", "file"];
+    readonly media_copy: readonly ["复制微信发来的文件", "file"];
 };
 /** A record tool's name. */
 export type RecordToolName = keyof typeof TITLES;

@@ -1,4 +1,4 @@
-/** Bundled client modules (17):
+/** Bundled client modules (18):
  *   client/assistants.js
  *   client/hidden-sessions.js
  *   client/host.js
@@ -16,4 +16,5 @@
  *   client/vendor/qrcode-generator.js
  *   shared/record-tools.js
  *   shared/settings.js
+ *   shared/silent.js
  */

@@ -19,9 +19,9 @@ The vitest specs. Host modules and entry plugins run against fake host services 
 - `calendar.test.ts` — the calendar and the clock line.
 - `ddl.test.ts` — the `ddl.md` fast path.
 - `watchdog.test.ts` — the watchdog.
-- `heartbeat.test.ts` — the daily brief, reminders, wake-ups, heartbeats, quiet hours, held messages, restarts, with a clock moved by hand.
+- `heartbeat.test.ts` — the daily brief, reminders, wake-ups, heartbeats, quiet hours, the daily inbox clean-up, restarts, with a clock moved by hand.
 - `quiet.test.ts` — daily and temporary quiet hours, and where a reminder goes.
-- `assistant-tools.test.ts` — `im_send`, `wake_after`, `wake_cancel`, `quiet_set`, `brief_set`, `temp_move`.
+- `assistant-tools.test.ts` — `im_route`, `wake_after`, `wake_cancel`, `quiet_set`, `brief_set`, `media_copy`, the inbox clean-up, and the tool titles.
 - `hidden-sessions.test.ts` — assistant conversations left out of the session lists.
 - `silent-turns.test.tsx` — which turns are marked to be hidden.
 - `wechat-link.test.ts` — the WeChat link (binding, reconnect, diagnosis, options, status sync) and the host-note request ids (the real im-robot module through the development link).
@@ -43,5 +43,6 @@ The vitest specs. Host modules and entry plugins run against fake host services 
 - Done (2026-11-02): specs for the record tools, repeating items, and time-zone conversion; the shell-command specs went with the commands.
 - Done (2026-11-02): specs for the required folder, the header menu, per-assistant settings, and the multi-choice worker models.
 - Done (2026-11-05): specs for the heartbeat, quiet hours, the router's new tools, the time zone, and the hidden session rows.
+- Done (2026-11-06): specs for `im_route`, `media_copy`, the inbox clean-up, and the WeChat inbox folder.
 - Open: an end-to-end spec in a real host belongs to the scratchpad run, not here.
 - Goal later: nothing planned.
