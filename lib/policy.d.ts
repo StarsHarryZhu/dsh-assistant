@@ -6,25 +6,27 @@
  * - router.md as the whole system prompt;
  * - contexts: the calendar, the workspace (who it is, profile, persona,
  *   projects), this week's schedule parsed from `ddl.md`, the balance
- *   reminder, the WeChat reply rule when the latest input came from WeChat, and
- *   the permission when it is not the default;
+ *   reminder, the chat app's rules while one is connected, the permission when
+ *   it is not the default, and the heartbeat with the quiet hours;
+ * - the clock, every few minutes, in the user's own time zone;
  * - the permission pin (the sandbox mode the assistant's IM tab chose, never
  *   ask); the model and effort are whatever the composer chose for this
  *   conversation;
  * - only complete-subagent's delegation and review tools among global tools;
- * - the record tools, the `balance_check` tool, and the `/ddl` command, which
- *   prints the week view itself.
+ * - the record tools, its own tools (the chat app, wake-ups, quiet hours, moving
+ *   files out of `temp/`), the `balance_check` tool, and the `/ddl` command,
+ *   which prints the week view itself.
  *
  * `role: worker` (the `dsh-assisstant-worker` preset every `delegate` child
- * runs on): worker.md, the calendar and workspace contexts, the record tools
- * but the profile's and persona's, and only `request_write_access` among
+ * runs on): worker.md, the clock, the calendar and workspace contexts, the record
+ * tools but the profile's and persona's, and only `request_write_access` among
  * global tools.
  * @module dsh-assisstant/policy
  */
 import type { Context } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 import type { AssistantService } from './host/service.ts';
-import type { SandboxMode } from './shared/settings.ts';
+import type { Person, SandboxMode } from './shared/settings.ts';
 import type { AssemblyLike, PresentationLike } from './host/types.ts';
 export declare const name = "dsh-assisstant-policy";
 export declare const inject: string[];
@@ -38,6 +40,8 @@ export declare const Config: z<Config>;
 export declare const ALLOWED_TOOLS: Record<Role, readonly string[]>;
 /** The prompt section name of each role, which the assemble hook keys on. */
 export declare const SECTION: Record<Role, string>;
+/** How often the model gets the time, in milliseconds, as the host's own clock does. */
+export declare const CLOCK_REFRESH_MS: number;
 /**
  * Keep only this role's section: the prompt is complete, so persona or
  * instruction sections another plugin adds globally stay out.
@@ -50,8 +54,10 @@ export declare function settleSections<T extends PresentationLike>(assembly: T, 
 export declare function balanceText(service: AssistantService): string;
 /** @returns what the router must know when an assistant's permission is not the default the prompt assumes. */
 export declare function permissionText(mode: SandboxMode): string;
-/** @returns the WeChat reply rule when the latest input came from WeChat, else an empty string. */
+/** @returns the chat app's rules while one is connected, by where the user last wrote; else an empty string. */
 export declare function channelText(service: AssistantService, sessionId: string): string;
+/** @returns the heartbeat and quiet hours as they stand, for the model to answer questions and tell what it may do. */
+export declare function heartbeatContext(service: AssistantService, person: Person, zone: string): string;
 /**
  * Apply the policy.
  * @param ctx - the preset-scoped plugin context.

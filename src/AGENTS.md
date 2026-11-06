@@ -13,9 +13,9 @@ All source of the package. The four entry modules at this level are the plugins 
 
 ## 3. Contents
 
-- `index.ts` — the settings row: settings, assistant list, `dshAssisstant` service, preset hiding, the conversation's model re-pin, the workers' model list, conversation titles, balance polling, WeChat link, watchdog, daily brief.
+- `index.ts` — the settings row: settings, assistant list, `dshAssisstant` service, preset hiding, the workers' model list, conversation titles, balance polling, WeChat link, watchdog, heartbeat, the user's time zone.
 - `bundle.ts` — the sub-plugin group: makes the pinned sub-plugins resolvable, then mounts them with the Loader group.
-- `policy.ts` — the policy for the router and worker presets: prompts, contexts, the router's permission pin, tool fence, balance tool, `/ddl`.
+- `policy.ts` — the policy for the router and worker presets: prompts, contexts, the clock in the user's zone, the router's permission pin, tool fence, the router's own tools, balance tool, `/ddl`.
 - `compactor.ts` — compacts an assistant conversation after a turn that reached the configured ratio.
 - `host` — host modules and the two prompts.
 - `shared` — identities, defaults, and data shapes shared by both halves.
@@ -29,5 +29,6 @@ All source of the package. The four entry modules at this level are the plugins 
 - Done (2026-11-02): the policy registers the record tools for both roles, in the preset's scope.
 - Done (2026-11-02): the settings row, policy, and compactor run on 0.2.1-rc.5, and failures in their listeners and timers stay inside the plugin.
 - Done (2026-11-02, user request): each assistant keeps its own schedule, watchdog, and WeChat settings; workers run a model the router picks from a list the settings row hands complete-subagent, and only the conversation is pinned.
+- Done (2026-11-05, user request): the settings row runs the heartbeat in place of the daily brief's timer and the host's automation tasks; the policy tells the time in the user's zone and registers the router's own tools.
 - Open: nothing here beyond the root file's list.
 - Goal later: nothing planned.

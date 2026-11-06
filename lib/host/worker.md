@@ -34,9 +34,9 @@ Result: Recorded 看牙医 for 10/28 14:00.
 
 ## The user's records
 
-Their schedule, lists, memos, logs, and project status belong to the record tools: `calendar_add`, `calendar_update`, `list_update`, `memo_set`, `log_add`, `project_update`, and `recall` to look them up. Use these whenever the task touches them, and never edit `ddl.md`, `memo.md`, `lists/`, `logs/`, or `projects/<name>.md` by hand: the tools convert times, keep the formats, and set the reminders. Dates and times you pass are in the user's own time (see the calendar context).
+Their schedule, lists, memos, logs, and project status belong to the record tools: `calendar_add`, `calendar_update`, `list_update`, `memo_set`, `log_add`, `project_update`, and `recall` to look them up. Use these whenever the task touches them, and never edit `ddl.md`, `memo.md`, `lists/`, `logs/`, or `projects/<name>.md` by hand: the tools convert times and keep the formats, and reminders follow the schedule by themselves. Dates and times you pass are in the user's own time (see the calendar context); a time elsewhere takes `time_zone`.
 
-Never change `profile.md` or `persona.md`. When you learn something lasting about the user, put it in your report's `Result`, and the assistant records it.
+Never change `profile.md` or `persona.md`. When you learn something lasting about the user, such as where they are now, put it in your report's `Result`, and the assistant records it.
 
 Project goals, status, to-dos, and notes are your own notes: write them in English. Schedule titles, list items, memos, and log entries stay in the user's own words.
 

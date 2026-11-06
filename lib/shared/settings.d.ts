@@ -48,6 +48,10 @@ export declare const ASSISTANT_DEFAULTS: {
     readonly sandboxMode: "workspace-write";
     readonly reminderLeadMinutes: 30;
     readonly dailyBriefTime: "08:00";
+    readonly heartbeatMinutes: 60;
+    readonly heartbeatIdleWake: true;
+    readonly quietStart: "22:00";
+    readonly quietEnd: "08:00";
     readonly watchdogStallMinutes: 10;
     readonly wechatEnabled: true;
     readonly wechatReplyMaxChars: 100;
@@ -59,12 +63,28 @@ export interface AssistantSettings {
     readonly reminderLeadMinutes: number;
     /** `HH:MM` local time of the daily brief, or an empty string when it is off. */
     readonly dailyBriefTime: string;
+    /** Minutes between heartbeats; 0 turns them off, and with them the wake-ups that have no other reason. */
+    readonly heartbeatMinutes: number;
+    /** Whether a heartbeat with nothing due still reaches the model. */
+    readonly heartbeatIdleWake: boolean;
+    /** `HH:MM` local start of the daily quiet hours; empty, like an end equal to it, means none. */
+    readonly quietStart: string;
+    /** `HH:MM` local end of the daily quiet hours. */
+    readonly quietEnd: string;
+    /** Start of the temporary quiet hours, epoch milliseconds. */
+    readonly tempQuietFrom?: number;
+    /** End of the temporary quiet hours, epoch milliseconds. */
+    readonly tempQuietUntil?: number;
     readonly watchdogStallMinutes: number;
     readonly wechatEnabled: boolean;
     readonly wechatReplyMaxChars: number;
 }
 /** The shortest WeChat message the settings allow (im-robot's own minimum). */
 export declare const MIN_WECHAT_REPLY_CHARS = 10;
+/** The shortest heartbeat interval other than 0 (off), in minutes. */
+export declare const MIN_HEARTBEAT_MINUTES = 5;
+/** The longest heartbeat interval: a day. */
+export declare const MAX_HEARTBEAT_MINUTES = 1440;
 /** The shortest stall the watchdog acts on, in minutes. */
 export declare const MIN_WATCHDOG_MINUTES = 2;
 /** Bounds of the compaction ratio setting. */
@@ -86,9 +106,10 @@ export interface Person {
     readonly name: string;
     /** What the assistant calls its user; absent when they left it empty. */
     readonly address?: string;
-    /** A local label for the bound WeChat account, shown in the IM tab. */
     /** Absolute workspace folder, chosen when the assistant is created. */
     readonly cwd?: string;
+    /** Where the user said they are, in their words, when the assistant was created; the assistant works out the time zone from it. */
+    readonly zoneHint?: string;
     /** The person's conversation; the host creates it and writes it back. */
     readonly sessionId?: string;
     /** What this assistant changed from `ASSISTANT_DEFAULTS`. */

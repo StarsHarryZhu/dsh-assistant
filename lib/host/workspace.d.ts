@@ -17,6 +17,8 @@ export interface WorkspaceOptions {
     readonly personaMaxChars: number;
     readonly personaSelfCorrect: boolean;
     readonly personaCooldownHours: number;
+    /** The zone in use until the profile records one. */
+    readonly standInZone?: string | undefined;
 }
 /** The file-system reads the context makes; tests pass fakes. */
 export interface WorkspaceFs {

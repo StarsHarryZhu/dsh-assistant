@@ -13,6 +13,7 @@ import { join } from 'node:path'
 import { LISTS_FOLDER, readList } from './records/lists.ts'
 import { LOGS_FOLDER, readLog } from './records/logs.ts'
 import { MEMO_FILE, readMemos } from './records/memos.ts'
+import { readProfileZone } from './records/profile.ts'
 
 /** What the workspace context needs to know. */
 export interface WorkspaceOptions {
@@ -24,6 +25,8 @@ export interface WorkspaceOptions {
   readonly personaMaxChars: number
   readonly personaSelfCorrect: boolean
   readonly personaCooldownHours: number
+  /** The zone in use until the profile records one. */
+  readonly standInZone?: string | undefined
 }
 
 /** The file-system reads the context makes; tests pass fakes. */
@@ -112,6 +115,9 @@ export function workspaceText(cwd: string | undefined, options: WorkspaceOptions
     lines.push('No profile yet: this is a new user. Get to know them naturally while you help, one small thing at a time, never with a questionnaire. Record the first fact as soon as you learn it.')
   } else {
     lines.push(capped(profile, options.profileMaxChars, 'profile.md'))
+  }
+  if (options.standInZone !== undefined && readProfileZone(profile) === undefined) {
+    lines.push('', `No time zone is recorded yet, so times use this computer's zone (${options.standInZone}) for now, which may not be theirs. Work out theirs from where they say they are or from their schedule, and record it with profile_set (field Time zone). Ask where they are only when nothing tells you.`)
   }
 
   const personaPath = join(cwd, 'persona.md')

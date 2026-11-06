@@ -1,13 +1,10 @@
 /**
- * The calendar the model reads every assembly, the `/ddl` week window, and the
- * session projection that remembers the user's latest browser time zone.
- * Ported from assistant-mode (`my_plugins/dsh-assisstant/lib/index.js`) with a
- * projection key of its own, so both plugins can be installed together.
+ * The calendar the model reads every assembly, the clock it gets every few
+ * minutes, and the `/ddl` week window, all in the user's own time zone (recorded
+ * in the profile, never read from a browser). Ported from assistant-mode
+ * (`my_plugins/dsh-assisstant/lib/index.js`).
  * @module dsh-assisstant/host/calendar
  */
-
-/** Session projection key holding the user's latest browser time zone. */
-export const ZONE_KEY = 'dshAssisstantTimeZone'
 
 /** How many days after today the calendar context lists. */
 const CALENDAR_DAYS = 14
@@ -39,49 +36,9 @@ export function validZone(value: unknown): string | undefined {
   }
 }
 
-/** @returns the host process time zone. */
+/** @returns the host process time zone: only a stand-in until the user's zone is recorded. */
 export function processZone(): string {
   return new Intl.DateTimeFormat().resolvedOptions().timeZone
-}
-
-/**
- * Read the browser zone the host stamps on an ordinary web user message
- * (`source.clientTimeZone`, see dsh-time-context's request-zone.ts).
- * @param source - a user message's source.
- * @returns the validated zone, or undefined.
- */
-export function clientZone(source: unknown): string | undefined {
-  if (source === null || typeof source !== 'object') return undefined
-  const record = source as { kind?: unknown; clientTimeZone?: unknown }
-  if (record.kind !== 'user') return undefined
-  return validZone(record.clientTimeZone)
-}
-
-/** State of {@link zoneProjection}. */
-export interface ZoneState {
-  readonly timeZone: string | null
-}
-
-/**
- * Host-only projection: the latest valid browser zone seen in the session.
- * The fold returns the same state reference for every event it ignores.
- */
-export const zoneProjection = {
-  key: ZONE_KEY,
-  stateVersion: 1,
-  stateSchema: {
-    parse(value: unknown): ZoneState {
-      const zone = value !== null && typeof value === 'object' ? (value as { timeZone?: unknown }).timeZone : undefined
-      if (zone === null || typeof zone === 'string') return { timeZone: zone }
-      throw new TypeError(`${ZONE_KEY}: expected { timeZone: string | null }`)
-    },
-  },
-  init: (): ZoneState => ({ timeZone: null }),
-  apply(state: ZoneState, event: { type: string; data?: { source?: unknown } }): ZoneState {
-    if (event.type !== 'user/message') return state
-    const zone = clientZone(event.data?.source)
-    return zone === undefined || zone === state.timeZone ? state : { timeZone: zone }
-  },
 }
 
 /** @returns the zone's calendar date at that instant. */
@@ -121,6 +78,21 @@ export function localDays(now: Date, zone: string, count: number): LocalDay[] {
   })
 }
 
+/**
+ * The clock reading the model gets, in place of the host's own, which only knows
+ * the browser's and the device's zones.
+ * @param now - the current instant.
+ * @param zone - the user's current IANA zone.
+ * @returns one line.
+ */
+export function clockText(now: Date, zone: string): string {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+    timeZone: zone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(now).map(part => [part.type, part.value]))
+  const today = localDays(now, zone, 0)[0] as LocalDay
+  return `Current time: ${today.iso} ${today.weekday} ${parts.hour}:${parts.minute} (${zone}, ${offsetAt(now, zone)}).`
+}
+
 /** @returns the Chinese weekday of a calendar date, "YYYY-MM-DD". */
 export function weekdayOf(iso: string): string {
   const [year, month, day] = iso.split('-').map(Number) as [number, number, number]
@@ -153,7 +125,7 @@ export function calendarText(now: Date, zone: string): string {
   return [
     '# User calendar',
     '',
-    `- The user's current time zone: ${zone} (${today.offset}). Read every date or time the user gives without a zone in this zone, and show every time converted to it. Never mention time zones to the user unless they ask. When another context says the browser time zone is unavailable, use this zone and do not ask.`,
+    `- The user's current time zone: ${zone} (${today.offset}). Read every date or time the user gives without a zone in this zone, and show every time converted to it. Never mention time zones to the user unless they ask.`,
     `- Today: ${today.iso} ${today.weekday}.`,
     `- The next ${CALENDAR_DAYS} days: ${upcoming.join(', ')}.`,
     `- The /ddl week: ${weekLabel(now, zone)}.`,

@@ -4,6 +4,13 @@
  * turn of an assistant conversation it compacts once the context reaches the
  * configured share of the window; the group's own compaction-basic stays as
  * the in-turn safety net at a higher ratio.
+ *
+ * The `compaction` service is not part of the row's own `inject`: a plugin that
+ * takes over compaction (billion-context) switches the group's compaction-basic
+ * off, and from DSH 0.2.2 the preset registry refuses a preset with a row still
+ * waiting for a service, which would leave every assistant conversation unable
+ * to start. The compactor reads the service at each turn's end instead, and
+ * does nothing while there is none.
  * @module dsh-assisstant/compactor
  */
 
@@ -14,15 +21,15 @@ import type { AssistantService } from './host/service.ts'
 import type { AgentsLike, CompactionLike, SessionLike, SessionProjectionsLike, TokenMeterLike } from './host/types.ts'
 
 export const name = 'dsh-assisstant-compactor'
-export const inject = ['compaction', 'tokenMeter', 'agents', 'dshAssisstant']
+export const inject = ['tokenMeter', 'agents', 'dshAssisstant']
 
 /** The services this plugin reads. */
 interface HostContext {
-  readonly compaction: CompactionLike
   readonly tokenMeter: TokenMeterLike
   readonly agents: AgentsLike
   readonly dshAssisstant: AssistantService
   get(name: 'sessionProjections'): SessionProjectionsLike | undefined
+  get(name: 'compaction'): CompactionLike | undefined
   on(name: string, listener: (...args: never[]) => unknown): () => void
 }
 
@@ -50,12 +57,14 @@ export function apply(ctx: Context): void {
     setTimeout(() => {
       void (async () => {
         try {
+          const compaction = host.get('compaction')
+          if (compaction === undefined) return
           const pressure = pressureOf({ tokenMeter: host.tokenMeter, sessionProjections: host.get('sessionProjections') }, session)
           if (!due(pressure, host.dshAssisstant.settings().compactRatio)) return
           const agent = host.agents.get(session.id)
           if (agent === undefined) return
           running.add(session.id)
-          await host.compaction.compactNow(agent, AbortSignal.timeout(120_000))
+          await compaction.compactNow(agent, AbortSignal.timeout(120_000))
         } catch (error) {
           ctx.logger.warn(`compaction of ${session.id} failed: ${String(error)}`)
         } finally {

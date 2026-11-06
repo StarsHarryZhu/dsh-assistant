@@ -2,15 +2,15 @@
  * The settings pages, laid out alike: the settings every assistant shares on
  * the Plugins screen (worker models, compaction, the balance reminder, persona
  * and profile limits), and each assistant's own in its conversation's settings
- * tab (its name and form of address, schedule, watchdog, WeChat, and removing
- * it). Each saves through the host's settings form of the row.
+ * tab (its name and form of address, schedule, heartbeat, quiet hours, watchdog,
+ * WeChat, and removing it). Each saves through the host's settings form of the row.
  * @module dsh-assisstant/client/settings
  */
 
 import { useEffect, useState, type ReactNode } from 'react'
-import { ASSISTANT_DEFAULTS, COMPACT_RATIO_RANGE, DEFAULTS, MAX_BALANCE_CHECK_MINUTES, MIN_WATCHDOG_MINUTES, MIN_WECHAT_REPLY_CHARS, assistantSettings, readWorkerModels } from '../shared/settings.ts'
+import { ASSISTANT_DEFAULTS, COMPACT_RATIO_RANGE, DEFAULTS, MAX_BALANCE_CHECK_MINUTES, MAX_HEARTBEAT_MINUTES, MIN_HEARTBEAT_MINUTES, MIN_WATCHDOG_MINUTES, MIN_WECHAT_REPLY_CHARS, assistantSettings, readWorkerModels } from '../shared/settings.ts'
 import type { AssistantSettings, Person, WorkerModel } from '../shared/settings.ts'
-import { assistantsView, removePerson, updateAssistant, useForm } from './assistants.ts'
+import { assistantsView, clearTemporaryQuiet, removePerson, updateAssistant, useForm } from './assistants.ts'
 import type { AssistantsView } from './assistants.ts'
 import type { CatalogGroup, ConfigFormLike, PathOp, RemoteSessionLike, Translate, UiWorkspaceLike } from './host.ts'
 import { fallbackT } from './locales.ts'
@@ -28,6 +28,8 @@ interface Field {
   readonly max?: number
   /** A number that may have decimals; the others are whole numbers, as the host's schema requires. */
   readonly decimal?: boolean
+  /** 0 is allowed below `min`, and means off. */
+  readonly zeroIsOff?: boolean
 }
 
 /** The settings every assistant shares, in display order. The worker models have their own picker. */
@@ -48,12 +50,16 @@ const GROUPS = ['model', 'compact', 'balance', 'persona']
 export const ASSISTANT_FIELDS: readonly Field[] = [
   { key: 'reminderLeadMinutes', kind: 'number', group: 'schedule', min: 0 },
   { key: 'dailyBriefTime', kind: 'time', group: 'schedule' },
+  { key: 'heartbeatMinutes', kind: 'number', group: 'heartbeat', min: MIN_HEARTBEAT_MINUTES, max: MAX_HEARTBEAT_MINUTES, zeroIsOff: true },
+  { key: 'heartbeatIdleWake', kind: 'boolean', group: 'heartbeat' },
+  { key: 'quietStart', kind: 'time', group: 'quiet' },
+  { key: 'quietEnd', kind: 'time', group: 'quiet' },
   { key: 'watchdogStallMinutes', kind: 'number', group: 'watchdog', min: MIN_WATCHDOG_MINUTES },
   { key: 'wechatEnabled', kind: 'boolean', group: 'wechat' },
   { key: 'wechatReplyMaxChars', kind: 'number', group: 'wechat', min: MIN_WECHAT_REPLY_CHARS },
 ]
 
-const ASSISTANT_GROUPS = ['schedule', 'watchdog', 'wechat']
+const ASSISTANT_GROUPS = ['schedule', 'heartbeat', 'quiet', 'watchdog', 'wechat']
 
 /** One field's value. */
 type Value = string | number | boolean
@@ -259,6 +265,7 @@ function AssistantPage(props: { view: AssistantsView; person: Person; deps: Assi
             <FieldInput key={field.key} field={field} value={draft[field.key] as Value} label={t(`settings.${field.key}`)}
               onChange={(value) => { set(field.key, value) }} />
           ))}
+          {group === 'quiet' && <TemporaryQuiet view={view} person={person} form={deps.form} t={t} />}
         </section>
       ))}
       <SaveRow disabled={JSON.stringify(draft) === storedKey || String(draft.name).trim() === '' || !view.writable} status={status} onSave={() => { void save() }} t={t} />
@@ -276,6 +283,19 @@ function AssistantPage(props: { view: AssistantsView; person: Person; deps: Assi
           </div>
         )
         : <div className="dsa-row"><button type="button" className="dsa-button dsa-danger" onClick={() => { setConfirming(true) }}>{t('settings.delete.assistant')}</button></div>}
+    </div>
+  )
+}
+
+/** The temporary quiet hours the assistant set when asked, while they last, and the way to end them. */
+function TemporaryQuiet(props: { view: AssistantsView; person: Person; form: ConfigFormLike; t: Translate }): ReactNode {
+  const { view, person, t } = props
+  const until = assistantSettings(person).tempQuietUntil
+  if (until === undefined || until <= Date.now()) return null
+  return (
+    <div className="dsa-row">
+      <span className="dsa-note">{t('settings.tempQuiet', { until: new Date(until).toLocaleString() })}</span>
+      <button type="button" className="dsa-button" onClick={() => { void clearTemporaryQuiet(props.form, view, person.id) }}>{t('settings.tempQuiet.clear')}</button>
     </div>
   )
 }
@@ -337,10 +357,11 @@ function correctedNumber(text: string, field: Field, fallback: string): string {
   const number = Number(text)
   if (text.trim() === '' || !Number.isFinite(number)) return fallback
   const rounded = field.decimal === true ? number : Math.round(number)
+  if (field.zeroIsOff === true && rounded <= 0) return '0'
   return String(Math.min(field.max ?? Infinity, Math.max(field.min ?? -Infinity, rounded)))
 }
 
-/** @returns what a typed clock time becomes: empty stays empty (no brief), 8, 8:00, and 0800 read as 08:00, and anything else keeps the fallback. */
+/** @returns what a typed clock time becomes: empty stays empty (off), 8, 8:00, and 0800 read as 08:00, and anything else keeps the fallback. */
 function correctedTime(text: string, fallback: string): string {
   const trimmed = text.trim()
   if (trimmed === '') return ''

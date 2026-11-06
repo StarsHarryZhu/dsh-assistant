@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { ALLOWED_TOOLS, SECTION, apply, balanceText, channelText, permissionText, settleSections } from '../src/policy.ts'
+import { ALLOWED_TOOLS, SECTION, apply, balanceText, channelText, heartbeatContext, permissionText, settleSections } from '../src/policy.ts'
 import { apply as applyCompactor, due } from '../src/compactor.ts'
 import type { SharedSettings } from '../src/host/service.ts'
 import type { SandboxMode } from '../src/shared/settings.ts'
@@ -36,14 +36,14 @@ function mount(role: 'router' | 'worker', options: { cwd?: string; settings?: Pa
 }
 
 describe('the router policy', () => {
-  it('installs the complete prompt, five contexts, the balance tool, and /ddl', () => {
+  it('installs the complete prompt, its contexts, its tools, and /ddl', () => {
     const { sections, contexts, tools, commands } = mount('router')
     expect(sections.map(section => section.name)).toEqual([SECTION.router])
     expect(sections[0]?.text).toContain('records yourself, everything else to workers')
     expect(contexts.map(context => context.name)).toEqual([
-      'dsh-assisstant:calendar', 'dsh-assisstant:workspace', 'dsh-assisstant:schedule', 'dsh-assisstant:balance', 'dsh-assisstant:channel', 'dsh-assisstant:permission',
+      'dsh-assisstant:calendar', 'dsh-assisstant:workspace', 'dsh-assisstant:schedule', 'dsh-assisstant:balance', 'dsh-assisstant:channel', 'dsh-assisstant:permission', 'dsh-assisstant:heartbeat',
     ])
-    expect(tools.scoped.map(tool => tool.name).sort()).toEqual(['balance_check', 'calendar_add', 'calendar_update', 'list_update', 'log_add', 'memo_set', 'persona_set', 'profile_set', 'project_update', 'recall'])
+    expect(tools.scoped.map(tool => tool.name).sort()).toEqual(['balance_check', 'brief_set', 'calendar_add', 'calendar_update', 'im_send', 'list_update', 'log_add', 'memo_set', 'persona_set', 'profile_set', 'project_update', 'quiet_set', 'recall', 'temp_move', 'wake_after', 'wake_cancel'])
     expect(commands.map(command => command.name)).toEqual(['ddl'])
   })
 
@@ -163,15 +163,57 @@ describe('the router policy', () => {
     expect(tools.scoped.map(tool => tool.name)).toContain('calendar_add')
   })
 
-  it('adds the balance reminder and the WeChat rule only when due', () => {
+  it('adds the balance reminder only when due, and only for a reply to the user', () => {
     const service = fakeService({ balanceThreshold: 10, balanceReminder: '余额 {balance}' })
     expect(balanceText(service)).toBe('')
     service.setBalance({ status: 'known', yuan: 3, checkedAt: 0 })
     expect(balanceText(service)).toContain('余额 3.00')
+    expect(balanceText(service)).toContain('next reply to a message from the user')
+  })
+
+  it('states the chat app\'s rules by where the user last wrote, and nothing while none is connected', () => {
+    const service = fakeService({}, [{ id: 'mom', name: '阿福', sessionId: 's' }])
     expect(channelText(service, 's')).toBe('')
+    expect(channelText(service, 'other')).toBe('')
+    service.chatConnected = () => true
+    const fromApp = channelText(service, 's')
+    expect(fromApp).toContain('came from the app')
+    expect(fromApp).toContain('with no WeChat markers')
+    expect(fromApp).toContain('only `im_send` reaches them')
     service.markInput('s', 'wechat')
-    expect(channelText(service, 's')).toContain('at most 100 characters each')
-    expect(channelText(service, 's')).toContain('<keep> and </keep>')
+    const fromChat = channelText(service, 's')
+    expect(fromChat).toContain('goes back there by itself')
+    expect(fromChat).toContain('at most 100 characters each')
+    expect(fromChat).toContain('<keep> and </keep>')
+    expect(fromChat).toContain('only `im_send` reaches them')
+  })
+
+  it('shows the heartbeat, the quiet hours, and the wake-ups as they stand', () => {
+    const service = fakeService()
+    const person = { id: 'mom', name: '阿福', settings: { heartbeatMinutes: 30, quietStart: '23:00', quietEnd: '07:00', tempQuietUntil: Date.now() + 3_600_000 } }
+    service.wakes = () => [{ id: 'w', at: Date.parse('2026-11-05T06:40:00Z'), reason: '叫他起床', throughQuiet: false }]
+    const text = heartbeatContext(service, person, 'Asia/Shanghai')
+    expect(text).toContain('every 30 minutes')
+    expect(text).toContain('Daily quiet hours: 23:00–07:00.')
+    expect(text).toContain('Temporary quiet hours: until')
+    expect(text).toContain('11/05 周四 14:40: 叫他起床')
+    expect(heartbeatContext(fakeService(), { id: 'a', name: 'a', settings: { heartbeatMinutes: 0, quietStart: '' } }, 'UTC')).toContain('Daily quiet hours: none.')
+  })
+
+  it('tells the time in the user\'s zone every ten minutes, whatever other hooks decide', async () => {
+    const { ctx, agents, service } = mount('router')
+    const agent = fakeAgent(fakeSession('r1'))
+    agents.set('r1', agent)
+    const [hook] = ctx.listeners.get('agent/pre-step') as unknown as ((input: unknown, next: () => Promise<{ kind: string; messages?: unknown[] }>) => Promise<{ kind: string; messages?: { source: { kind: string; form: string }; content: { text: string }[] }[] }>)[]
+    const pass = async () => ({ kind: 'continue', messages: [] })
+    const first = await hook!({ agent }, pass)
+    expect(first.messages?.[0]?.source).toMatchObject({ kind: 'dsh-assisstant-clock', form: 'snapshot' })
+    expect(first.messages?.[0]?.content[0]?.text).toContain('(America/New_York,')
+    expect((await hook!({ agent }, pass)).messages).toEqual([])
+    expect(await hook!({ agent }, async () => ({ kind: 'reject' }))).toEqual({ kind: 'reject' })
+    // A newly recorded zone shows at once.
+    service.zoneFor = () => 'Asia/Tokyo'
+    expect((await hook!({ agent }, pass)).messages?.[0]?.content[0]?.text).toContain('(Asia/Tokyo,')
   })
 
   it('keeps only its own prompt section', () => {
@@ -243,6 +285,21 @@ describe('the compactor', () => {
     await new Promise(resolve => setTimeout(resolve, 5))
     expect(ctx.warnings).toEqual([])
     expect(compacted).toEqual(['r1'])
+  })
+
+  it('waits for no compaction service, and does nothing while the group has none (billion-context switches it off)', async () => {
+    const { inject } = await import('../src/compactor.ts')
+    expect(inject).not.toContain('compaction')
+    const root = fakeAgent(fakeSession('r1'))
+    const ctx = new FakeContext({
+      tokenMeter: { contextPressure: () => ({ pressureTokens: 99, contextWindow: 100 }) },
+      agents: { get: (id: string) => (id === 'r1' ? root : undefined), list: () => [root] },
+      dshAssisstant: fakeService({ compactRatio: 0.75 }),
+    })
+    applyCompactor(ctx as never)
+    ctx.emit('session/event', root.session, { type: 'turn/end' })
+    await new Promise(resolve => setTimeout(resolve, 5))
+    expect(ctx.warnings).toEqual([])
   })
 
   it('does not compact before the host has recorded the pressure', () => {

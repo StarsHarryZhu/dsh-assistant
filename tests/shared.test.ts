@@ -53,6 +53,19 @@ describe('settings readers', () => {
     expect(readPeople([{ id: 'a', name: '阿福', settings: { watchdogStallMinutes: 120 } }])).toEqual([{ id: 'a', name: '阿福', settings: { watchdogStallMinutes: 120 } }])
   })
 
+  it('reads the heartbeat and quiet hours, refusing an interval out of bounds', () => {
+    expect(readAssistantSettings({ heartbeatMinutes: 3 })).toBeUndefined()
+    expect(readAssistantSettings({ heartbeatMinutes: 2000 })).toBeUndefined()
+    expect(readAssistantSettings({ heartbeatMinutes: 0, heartbeatIdleWake: false })).toEqual({ heartbeatMinutes: 0, heartbeatIdleWake: false })
+    expect(readAssistantSettings({ quietStart: ' 23:00 ', quietEnd: '', tempQuietUntil: 9, tempQuietFrom: 'x' })).toEqual({ quietStart: '23:00', quietEnd: '', tempQuietUntil: 9 })
+    expect(ASSISTANT_DEFAULTS).toMatchObject({ heartbeatMinutes: 60, heartbeatIdleWake: true, quietStart: '22:00', quietEnd: '08:00', dailyBriefTime: '08:00' })
+  })
+
+  it('keeps where the user said they are', () => {
+    expect(readPeople([{ id: 'a', name: '阿福', zoneHint: ' 上海 ' }])).toEqual([{ id: 'a', name: '阿福', zoneHint: '上海' }])
+    expect(readPeople([{ id: 'a', name: '阿福', zoneHint: ' ' }])).toEqual([{ id: 'a', name: '阿福' }])
+  })
+
   it('keeps only well-formed assistants, first id winning, with an optional form of address', () => {
     expect(readPeople([
       { id: 'a', name: '阿福', address: '妈妈', cwd: '/f/mom', sessionId: 's1' },

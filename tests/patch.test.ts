@@ -39,6 +39,7 @@ describe('the bundle patch', () => {
     expect(group).toContain('childPreset: dsh-assisstant-worker')
     expect(group).toContain('ownModel: false')
     expect(group).toContain('presets: [dsh-assisstant]')
+    expect(group).toContain('autoPush: false')
   })
 
   it('gives the router no writes, no shell, no web, no skills, and no official subagent tool', () => {
@@ -48,6 +49,8 @@ describe('the bundle patch', () => {
       expect(router).not.toContain(absent)
     }
     expect(router).toMatch(/dsh-tool-fs'\n {12}config:\n {14}write: false\n {14}edit: false/u)
+    // The heartbeat replaces the host's automation tasks, and the policy its clock of browser and device zones.
+    for (const absent of ['dsh-tool-schedule', 'dsh-time-context']) expect(router).not.toContain(absent)
     expect(router).toContain("name: '@starsharryzhu/dsh-assistant/compactor'")
     expect(router).toContain('role: router')
   })
@@ -60,13 +63,14 @@ describe('the bundle patch', () => {
     expect(worker).toContain('dsh-tool-web')
     expect(worker).toContain('role: worker')
     expect(worker).not.toContain('dsh-tool-subagent')
+    expect(worker).not.toContain('dsh-time-context')
   })
 })
 
 describe('the manifest', () => {
   it('pins the identity, the engine range, and the entries', () => {
     expect(manifest.name).toBe('@starsharryzhu/dsh-assistant')
-    expect(manifest.version).toBe('0.1.2')
+    expect(manifest.version).toBe('0.2.0')
     expect(manifest.license).toBe('MIT')
     expect(manifest.engines.dsh).toBe('>=0.2.1-rc.5 <0.3.0-0')
     const hostRanges = Object.values({ ...manifest.devDependencies, ...manifest.peerDependencies } as Record<string, string>).filter(range => range.includes('0.2.'))

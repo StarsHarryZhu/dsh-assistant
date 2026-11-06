@@ -25,6 +25,8 @@ export interface SessionLike {
 export interface AgentLike {
     readonly id: string;
     readonly session: SessionLike;
+    /** `running` while a turn runs. */
+    readonly status?: string;
     /** Queue one message as a turn of its own, and wake the agent. */
     followup(message: unknown): unknown;
 }
@@ -252,7 +254,10 @@ export interface ImRobotLike {
         commands?: boolean;
         enabled?: boolean;
         replyMaxChars?: number;
+        mediaDir?: string;
     }): unknown;
+    /** Send text to the account through its outbox; throws when the binding cannot send. Since im-robot 0.2.0. */
+    send?(bindingId: string, text: string): void;
     reconnect?(bindingId: string): Promise<ImBindingStatus>;
     diagnose?(bindingId: string): Promise<ImDiagnosis>;
 }
@@ -263,41 +268,34 @@ export interface CompleteSubagentLike {
         readonly model: string;
     }[]): void;
 }
-/** A stored reminder (`ScheduleRecord` of `@deepseek-ai/dsh-schedule`). */
+/** A stored automation task (`ScheduleRecord` of `@deepseek-ai/dsh-schedule`); 0.2.2 adds its target. */
 export interface ReminderRecordLike {
     readonly id: string;
-    readonly kind: string;
-    readonly title: string;
-    readonly prompt: string;
-    readonly scheduledAt: string;
+    readonly target?: {
+        readonly kind: string;
+        readonly sessionId?: string;
+    };
 }
-/** `ctx.schedule` (`ScheduleService` of `@deepseek-ai/dsh-schedule`). */
+/**
+ * `ctx.schedule` (`ScheduleService` of `@deepseek-ai/dsh-schedule`): only to remove what earlier versions left there.
+ * 0.2.1-rc.5 lists and deletes one session's tasks; 0.2.2 lists every task (`catalog`), stops a session's active
+ * ones (`stopSessionTasks`), and deletes through `edit`.
+ */
 export interface ScheduleLike {
-    create(sessionId: string, request: {
-        prompt: string;
-        title: string;
-        at?: string;
-        daily?: {
-            time: string;
-            time_zone: string;
-        };
-        weekly?: {
-            time: string;
-            time_zone: string;
-            weekdays: number[];
-        };
-        cron?: {
-            expression: string;
-            time_zone: string;
-        };
-    }): Promise<ReminderRecordLike>;
-    list(request: {
+    list?(request: {
         sessionId: string;
-    }): Promise<readonly ReminderRecordLike[]>;
-    delete(request: {
+    }): Promise<unknown>;
+    delete?(request: {
         sessionId: string;
         id: string;
     }): Promise<unknown>;
+    catalog?(): Promise<readonly ReminderRecordLike[]>;
+    stopSessionTasks?(sessionId: string): Promise<void>;
+    /** The acting session hears of no change it made itself. */
+    edit?(request: {
+        id: string;
+        action: 'delete';
+    }, actorSessionId?: string): Promise<unknown>;
 }
 /** `ctx.sessionTitle` (`SessionTitleService` of `@deepseek-ai/dsh-session-title`). */
 export interface SessionTitleLike {

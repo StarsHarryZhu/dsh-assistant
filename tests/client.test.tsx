@@ -316,6 +316,7 @@ describe('the browser half', () => {
     const { registrations, find } = loadClient(fakeForm({}).form)
     expect(registrations.filter(entry => entry.name === 'tool.call.toolview').map(entry => entry.key)).toEqual([
       'calendar_add', 'calendar_update', 'list_update', 'memo_set', 'log_add', 'project_update', 'recall', 'profile_set', 'persona_set',
+      'im_send', 'wake_after', 'wake_cancel', 'quiet_set', 'brief_set', 'temp_move',
     ])
     const Row = find('tool.call.toolview', 'calendar_add')
     const settled = render(<Row toolName="calendar_add" phase="result" block={{ kind: 'ok', call: { argsRaw: '{"title":"看牙医","kind":"日程"}' } }} />)
@@ -559,7 +560,7 @@ describe('the browser half', () => {
     fake.show('s-mom')
     const View = find('conversation.view', 'dsh-assisstant-settings')
     render(<View sessionId="s-mom" />)
-    const time = screen.getByLabelText('每日提醒时间（如 08:00，留空关闭）') as HTMLInputElement
+    const time = screen.getByLabelText('早上提示时间（如 08:00，留空关闭）') as HTMLInputElement
     for (const [typed, shown] of [['8', '08:00'], ['7:30', '07:30'], ['0915', '09:15'], ['25:00', '09:15'], ['早上', '09:15'], ['', '']] as const) {
       fireEvent.focus(time)
       fireEvent.change(time, { target: { value: typed } })
@@ -567,6 +568,73 @@ describe('the browser half', () => {
       fireEvent.blur(time)
       expect(time.value).toBe(shown)
     }
+  })
+
+  it('edits the heartbeat and quiet hours, with 0 as off and bounds on the rest', () => {
+    const { form } = fakeForm({ people: [{ id: 'mom', name: '阿福', cwd: '/w', sessionId: 's-mom' }] })
+    const fake = fakeSessions()
+    const { find } = loadClient(form, { sessions: fake.sessions })
+    fake.show('s-mom')
+    const View = find('conversation.view', 'dsh-assisstant-settings')
+    render(<View sessionId="s-mom" />)
+    const beat = screen.getByLabelText('每隔几分钟唤醒一次助理（0 表示关闭）') as HTMLInputElement
+    expect(beat.value).toBe('60')
+    for (const [typed, shown] of [['0', '0'], ['3', '5'], ['99999', '1440'], ['30', '30']] as const) {
+      fireEvent.focus(beat)
+      fireEvent.change(beat, { target: { value: typed } })
+      fireEvent.blur(beat)
+      expect(beat.value).toBe(shown)
+    }
+    expect((screen.getByLabelText('没有到期的事时也唤醒模型（更主动，也更费钱）') as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByLabelText('勿扰开始（如 22:00，留空关闭）') as HTMLInputElement).value).toBe('22:00')
+    expect((screen.getByLabelText('勿扰结束（如 08:00）') as HTMLInputElement).value).toBe('08:00')
+    expect(screen.queryByText('取消临时勿扰')).toBeNull()
+  })
+
+  it('shows temporary quiet hours while they last, keeps them on saving, and can end them', async () => {
+    const until = Date.now() + 3_600_000
+    const { form } = fakeForm({ people: [{ id: 'mom', name: '阿福', cwd: '/w', sessionId: 's-mom', settings: { tempQuietFrom: 1, tempQuietUntil: until } }] })
+    const value = () => form.getSnapshot().value as Record<string, unknown>
+    const fake = fakeSessions()
+    const { find } = loadClient(form, { sessions: fake.sessions })
+    fake.show('s-mom')
+    const View = find('conversation.view', 'dsh-assisstant-settings')
+    render(<View sessionId="s-mom" />)
+    expect(screen.getByText(/临时勿扰到/u)).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('希望它怎么称呼你'), { target: { value: '妈' } })
+    fireEvent.click(screen.getByText('保存'))
+    await waitFor(() => { expect((value().people as { address?: string }[])[0]?.address).toBe('妈') })
+    expect((value().people as { settings?: unknown }[])[0]?.settings).toEqual({ tempQuietFrom: 1, tempQuietUntil: until })
+    fireEvent.click(await screen.findByText('取消临时勿扰'))
+    await waitFor(() => { expect((value().people as { settings?: unknown }[])[0]?.settings).toBeUndefined() })
+  })
+
+  it('asks where the user is when creating an assistant, and may be left empty', async () => {
+    const { form } = fakeForm({ people: [] })
+    const value = () => form.getSnapshot().value as Record<string, unknown>
+    const workspace = fakeWorkspace('/w/a', '/w/b')
+    const { find } = loadClient(form, { uiWorkspace: workspace.uiWorkspace })
+    const Page = find('main', 'dsh-assisstant')
+    render(<Page />)
+    fireEvent.change(screen.getByLabelText('助理的名字'), { target: { value: '阿福' } })
+    fireEvent.change(screen.getByLabelText('你在哪里'), { target: { value: ' 上海 ' } })
+    fireEvent.click(screen.getByText('选择文件夹…'))
+    await screen.findByText('/w/a')
+    fireEvent.click(screen.getByText('创建'))
+    await waitFor(() => { expect((value().people as { zoneHint?: string }[])[0]?.zoneHint).toBe('上海') })
+  })
+
+  it('leaves assistant conversations out of the session lists the sidebar reads, and whole for opening', () => {
+    const { form } = fakeForm({ people: [{ id: 'mom', name: '阿福', cwd: '/w', sessionId: 's-mom' }] })
+    const fake = fakeSessions()
+    const row = { retainedBy: {} }
+    const raw = { ids: ['s-mom', 's-other', 's-old'], byId: { 's-mom': row, 's-other': row, 's-old': { ...row, projectionValues: { agentPreset: 'dsh-assisstant' } } } }
+    const list = { getSnapshot: () => raw, set: () => undefined }
+    const workspaces = { getSnapshot: () => ({ items: [{ sessionIds: ['s-mom', 's-other'] }] }) }
+    loadClient(form, { sessions: { ...fake.sessions, list }, workspaces: { list: workspaces } })
+    expect(list.getSnapshot().ids).toEqual(['s-other'])
+    expect(Object.keys(list.getSnapshot().byId)).toEqual(['s-mom', 's-other', 's-old'])
+    expect(workspaces.getSnapshot().items[0]?.sessionIds).toEqual(['s-other'])
   })
 
   it('draws the settings summary', () => {

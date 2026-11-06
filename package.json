@@ -1,6 +1,6 @@
 {
   "name": "@starsharryzhu/dsh-assistant",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "A general-purpose chat agent for DeepSeek Harness built on a parent-agent + worker sub-agent architecture: the parent plans, delegates, manages worker context, model and reasoning effort, workspace, and permission approval, and reports results. Requires DeepSeek Harness Desktop >=0.2.1-rc.5 <0.3.0.",
   "keywords": [
     "dsh-plugin",
@@ -56,7 +56,7 @@
   },
   "dependencies": {
     "@starsharryzhu/complete-subagent": "0.1.0",
-    "@starsharryzhu/im-robot": "0.1.0"
+    "@starsharryzhu/im-robot": "0.2.0"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",

@@ -19,6 +19,8 @@ export interface CalendarItem {
     readonly repeat?: RepeatName | undefined;
     /** ISO weekdays of a weekly repeat; defaults to the weekday of `date`. */
     readonly weekdays?: readonly number[] | undefined;
+    /** true when they said not to be reminded; on a change, false asks for reminders again. */
+    readonly muted?: boolean | undefined;
 }
 /** What to do to an item found by its title. */
 export type CalendarAction = 'change' | 'done' | 'reopen' | 'remove';
@@ -41,6 +43,8 @@ export type CalendarResult = {
 };
 /** @returns the first thing wrong with the given dates and times, if any. */
 export declare function invalidTiming(item: Partial<CalendarItem>): string | undefined;
+/** @returns whether the user asked for no reminder of this item. */
+export declare function isMuted(entry: Pick<DdlEntry, 'title'>): boolean;
 /**
  * Add an item.
  * @param text - the file, undefined when absent.

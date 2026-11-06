@@ -21,6 +21,7 @@ function robot(states: ImLoginState[]) {
 function link(service: ImRobotLike | undefined, sessionId: string | null = 's-mom', initial: Record<string, WechatState> = {}) {
   const writes: { id: string; state: WechatState | null }[] = []
   const warnings: string[] = []
+  const bound: string[] = []
   const states: Record<string, WechatState> = { ...initial }
   const instance = new WechatLink({
     robot: () => service,
@@ -32,9 +33,10 @@ function link(service: ImRobotLike | undefined, sessionId: string | null = 's-mo
     },
     readState: id => states[id],
     warn: (message) => { warnings.push(message) },
+    bound: (personId, boundSession) => { bound.push(`${personId}:${boundSession}`) },
     now: () => 42,
   })
-  return { instance, writes, warnings }
+  return { instance, writes, warnings, bound }
 }
 
 describe('the WeChat link', () => {
@@ -44,10 +46,11 @@ describe('the WeChat link', () => {
       { status: 'scanned' },
       { status: 'bound', user: 'wx***1' },
     ])
-    const { instance, writes } = link(service)
+    const { instance, writes, bound } = link(service)
     await instance.handle({ personId: 'mom', action: 'bind', nonce: 'n1' })
     expect(calls).toEqual(['login:mom', 'bind:mom:s-mom'])
     expect(writes.map(write => write.state?.status)).toEqual(['qr', 'scanned', 'bound'])
+    expect(bound).toEqual(['mom:s-mom'])
     expect(writes[0]?.state).toEqual({ status: 'qr', qr: 'https://qr', expiresAt: 99, updatedAt: 42 })
     expect(writes[2]?.state).toEqual({ status: 'bound', user: 'wx***1', connected: true, updatedAt: 42 })
   })

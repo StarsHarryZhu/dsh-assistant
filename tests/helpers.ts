@@ -133,6 +133,13 @@ export function fakeService(overrides: Partial<SharedSettings> = {}, people: Per
     lastInput: sessionId => inputs.get(sessionId) ?? 'web',
     markInput: (sessionId, channel) => { inputs.set(sessionId, channel) },
     zoneFor: () => 'America/New_York',
+    chatConnected: () => false,
+    sendToChat: () => ({ status: 'unavailable' }),
+    turnFromUser: () => false,
+    wakes: () => [],
+    addWake: () => undefined,
+    cancelWakes: () => [],
+    updateSettings: async () => undefined,
     setBalance: (state) => { balance = state },
   }
   return service

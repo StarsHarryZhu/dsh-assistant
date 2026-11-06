@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ZONE_KEY, calendarText, clientZone, localDays, processZone, validZone, weekLabel, zoneProjection } from '../src/host/calendar.ts'
+import { calendarText, clockText, localDays, processZone, validZone, weekLabel } from '../src/host/calendar.ts'
 
 describe('the calendar', () => {
   it('crosses a month and a year with the right weekdays', () => {
@@ -21,21 +21,16 @@ describe('the calendar', () => {
     expect(calendarText(new Date('2026-10-27T02:30:00Z'), 'UTC')).toMatch(/UTC \(UTC\+00:00\)/u)
   })
 
-  it('accepts only canonical zones from ordinary user messages', () => {
+  it('accepts only canonical zones', () => {
     expect(validZone('Asia/Shanghai')).toBe('Asia/Shanghai')
     expect(validZone('Mars/Olympus')).toBeUndefined()
+    expect(validZone('上海')).toBeUndefined()
     expect(typeof processZone()).toBe('string')
-    expect(clientZone({ kind: 'user', clientTimeZone: 'Asia/Shanghai' })).toBe('Asia/Shanghai')
-    expect(clientZone({ kind: 'time-context', clientTimeZone: 'Asia/Shanghai' })).toBeUndefined()
   })
 
-  it('keeps the latest valid zone under its own key', () => {
-    expect(ZONE_KEY).toBe('dshAssisstantTimeZone')
-    let state = zoneProjection.init()
-    state = zoneProjection.apply(state, { type: 'user/message', data: { source: { kind: 'user', clientTimeZone: 'America/New_York' } } })
-    const same = zoneProjection.apply(state, { type: 'turn/start' })
-    expect(same).toBe(state)
-    expect(state).toEqual({ timeZone: 'America/New_York' })
-    expect(() => zoneProjection.stateSchema.parse({})).toThrow()
+  it('reads the clock in the user\'s zone', () => {
+    const now = new Date('2026-11-05T06:03:00Z')
+    expect(clockText(now, 'Asia/Shanghai')).toBe('Current time: 2026-11-05 周四 14:03 (Asia/Shanghai, UTC+08:00).')
+    expect(clockText(now, 'America/New_York')).toBe('Current time: 2026-11-05 周四 01:03 (America/New_York, UTC-05:00).')
   })
 })

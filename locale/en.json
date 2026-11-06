@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Assistant",
-    "description": "An Assistant row in the left sidebar opens an assistant's conversation: each assistant has a workspace and one long conversation, only talks and delegates, while background workers do the work; with automatic compaction, a balance reminder, a self-correcting persona, a schedule with a daily brief, a watchdog, and WeChat through the im-robot sub-plugin."
+    "description": "An Assistant row in the left sidebar opens an assistant's conversation: each assistant has a workspace and one long conversation, only talks and delegates, while background workers do the work; with automatic compaction, a balance reminder, a self-correcting persona, a schedule with a daily brief, heartbeats, quiet hours, a watchdog, and WeChat through the im-robot sub-plugin."
   }
 }

@@ -11,6 +11,9 @@ import { insertInSection, joinLines, linesOf, matching, oneLine } from './text.t
 
 export const CALENDAR_FILE = 'ddl.md'
 
+/** Ends the title of an item the user does not want a reminder for. */
+const MUTED_MARK = '（不提醒）'
+
 const REPEATS_HEADING = '## 重复'
 const OPEN_HEADING = '## 待完成'
 const DONE_HEADING = '## 已完成'
@@ -50,6 +53,8 @@ export interface CalendarItem {
   readonly repeat?: RepeatName | undefined
   /** ISO weekdays of a weekly repeat; defaults to the weekday of `date`. */
   readonly weekdays?: readonly number[] | undefined
+  /** true when they said not to be reminded; on a change, false asks for reminders again. */
+  readonly muted?: boolean | undefined
 }
 
 /** What to do to an item found by its title. */
@@ -137,6 +142,21 @@ function fullTitle(title: string, note: string | undefined): string {
   return cleaned === '' ? oneLine(title) : `${oneLine(title)}（${cleaned}）`
 }
 
+/** @returns whether the user asked for no reminder of this item. */
+export function isMuted(entry: Pick<DdlEntry, 'title'>): boolean {
+  return entry.title.endsWith(MUTED_MARK)
+}
+
+/** @returns the title without the mark. */
+function unmutedTitle(title: string): string {
+  return title.endsWith(MUTED_MARK) ? title.slice(0, -MUTED_MARK.length) : title
+}
+
+/** @returns the title carrying the mark, or not. */
+function withMute(title: string, muted: boolean): string {
+  return title === '' || !muted ? title : `${title}${MUTED_MARK}`
+}
+
 /** @returns the entry's line in the file. */
 function lineOf(entry: DdlEntry, doneAt?: number): string {
   if (entry.repeat !== undefined) {
@@ -195,7 +215,7 @@ function place(lines: string[], entry: DdlEntry, doneAt?: number): void {
 export function addItem(text: string | undefined, item: CalendarItem, now: number, zone: string): CalendarResult {
   const invalid = invalidTiming(item)
   if (invalid !== undefined) return { ok: false, message: invalid }
-  const title = fullTitle(item.title, item.note)
+  const title = withMute(fullTitle(item.title, item.note), item.muted === true)
   if (title === '') return { ok: false, message: 'The title is empty.' }
   let entry: DdlEntry
   if (item.repeat !== undefined) {
@@ -296,9 +316,11 @@ export function updateItem(text: string | undefined, edit: CalendarEdit, now: nu
 /** @returns the entry after a `change`, or why it cannot change that way. */
 function changedEntry(entry: DdlEntry, edit: CalendarEdit, now: number, zone: string): DdlEntry | string {
   const kind = edit.kind ?? entry.kind
-  const title = edit.title === undefined && edit.note === undefined
-    ? entry.title
-    : fullTitle(edit.title ?? entry.title.replace(/（[^）]*）$/u, ''), edit.note ?? /（([^）]*)）$/u.exec(entry.title)?.[1])
+  const current = unmutedTitle(entry.title)
+  const named = edit.title === undefined && edit.note === undefined
+    ? current
+    : fullTitle(edit.title ?? current.replace(/（[^）]*）$/u, ''), edit.note ?? /（([^）]*)）$/u.exec(current)?.[1])
+  const title = withMute(named, edit.muted ?? isMuted(entry))
   if (title === '') return 'The title is empty.'
   if (entry.repeat !== undefined) {
     if (edit.repeat === undefined && edit.date === undefined && edit.weekdays === undefined) {

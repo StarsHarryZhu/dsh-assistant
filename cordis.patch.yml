@@ -4,7 +4,8 @@
 # 1. The settings row, top level because the settings page edits only
 #    top-level rows. It holds every setting and the assistant list, hides both
 #    presets from the preset lists, polls the balance, links WeChat bindings,
-#    sends the daily brief, and runs the watchdog.
+#    runs each assistant's heartbeat (reminders, the daily brief, wake-ups, quiet
+#    hours) in place of the host's automation tasks, and runs the watchdog.
 # 2. The sub-plugin group (as dsh-mnemon's group row): each child is an npm
 #    package pinned in package.json#dependencies, limited to this plugin's
 #    presets by its own `presets` setting, and switched off when the user also
@@ -14,15 +15,20 @@
 #    the group plugin drops such a literal, which this patch never sets.
 #    complete-subagent offers workers only the models the settings row sets
 #    through its service (`ownModel: false`), never the conversation's own.
+#    im-robot answers WeChat on its own only for turns a WeChat message started
+#    (`autoPush: false`): everything else reaches WeChat through the router's
+#    `im_send`, so nothing goes twice.
 # 3. The router preset: the user's own conversation. A strict router
-#    (as dsh-superagent-prototype's main Session): it reads, talks, sets
-#    reminders, records simple information with the policy's record tools over
-#    fixed files, and hands the rest to a worker with `delegate`; it has no
-#    general file writes, no shell, no web, and no official subagent tool.
+#    (as dsh-superagent-prototype's main Session): it reads, talks, records
+#    simple information with the policy's record tools over fixed files, and
+#    hands the rest to a worker with `delegate`; it has no general file writes,
+#    no shell, no web, no official subagent tool, and no automation tasks.
 # 4. The worker preset every `delegate` child runs on: the standard preset's
 #    working tools, with a shell whose foreground command moves to a
 #    background job after 5 seconds so a message from the router is taken at
 #    the next step.
+# Neither preset mounts the host's time context, which knows only the browser's
+# and the device's zones: the policy gives the time in the user's own zone.
 - insert:
     - id: dsh-assisstant
       name: '@starsharryzhu/dsh-assistant'
@@ -41,6 +47,7 @@
           name: '@starsharryzhu/im-robot'
           config:
             presets: [dsh-assisstant]
+            autoPush: false
           disabled: !!js "[...loader.entries()].some(e => e.options.id === 'im-robot' && !e.options.disabled)"
     - id: preset-dsh-assisstant
       name: '@deepseek-ai/dsh-agent-preset'
@@ -50,8 +57,6 @@
         description: 助理和用户的对话（隐藏，不供手动选择）。
         order: 90
         plugins:
-          - id: time-context
-            name: '@deepseek-ai/dsh-time-context'
           - id: tool-fs
             name: '@deepseek-ai/dsh-tool-fs'
             config:
@@ -61,8 +66,6 @@
             name: '@deepseek-ai/dsh-tool-fs-search'
             config:
               sampleOverCapGlobResults: false
-          - id: tool-schedule
-            name: '@deepseek-ai/dsh-tool-schedule'
           - id: tool-subagent-control
             name: '@deepseek-ai/dsh-tool-subagent-control'
           - id: compaction
@@ -98,8 +101,6 @@
         description: 助理的后台子代理（隐藏，不供手动选择）。
         order: 91
         plugins:
-          - id: time-context
-            name: '@deepseek-ai/dsh-time-context'
           - id: shell
             name: cordis:group
             group: true

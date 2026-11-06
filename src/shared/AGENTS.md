@@ -12,11 +12,12 @@ The identities, defaults, and data shapes both halves of the plugin read from th
 ## 3. Contents
 
 - `settings.ts` — ids, defaults, data shapes, readers, and the folder-name rule.
-- `record-tools.ts` — the record tools' names and the plain titles of their calls.
+- `record-tools.ts` — the names of the assistant conversation's own tools and the plain titles of their calls.
 
 ## 4. Progress
 
 - Done (2026-11-02, user request): each assistant's own settings and the list of worker models, which is never empty; no default workspace location.
 - Done (2026-11-01): ids, defaults, shapes, readers; request actions with options, and the connection, options, and diagnosis in WeChat states.
+- Done (2026-11-05, user request): the heartbeat and quiet hours among each assistant's settings, and where the user said they are.
 - Open: nothing.
 - Goal later: nothing planned.

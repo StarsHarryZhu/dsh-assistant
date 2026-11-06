@@ -1,6 +1,6 @@
 /**
- * The record tools end to end over real files and a fake reminder service: what
- * each writes, how it reports, and what it refuses.
+ * The record tools end to end over real files: what each writes, how it reports,
+ * and what it refuses.
  */
 import { existsSync, mkdtempSync, readFileSync, readdirSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -10,63 +10,38 @@ import { RecordStore } from '../src/host/records/store.ts'
 import { ROUTER_ONLY_TOOLS, recordTools } from '../src/host/records/tools.ts'
 import { DEFAULTS } from '../src/shared/settings.ts'
 import type { SharedSettings } from '../src/host/service.ts'
-import type { ReminderRecordLike, ScheduleLike } from '../src/host/types.ts'
 
 const NOW = Date.parse('2026-11-02T12:00:00Z')
 const ZONE = 'America/New_York'
 
 type Tool = { name: string; execute(args: unknown, exec: unknown): Promise<{ ok: boolean; message: string }>; presentCall?(args: unknown): { title: string } | undefined }
 
-/** A reminder service that keeps its records in a list. */
-function fakeSchedule() {
-  const records: (ReminderRecordLike & Record<string, unknown>)[] = []
-  const service: ScheduleLike = {
-    create: async (_sessionId, request) => {
-      const kind = request.at !== undefined ? 'at' : request.daily !== undefined ? 'daily' : request.weekly !== undefined ? 'weekly' : 'cron'
-      const record = { id: `r${records.length + 1}`, kind, scheduledAt: request.at ?? '2099-01-01T00:00:00.000Z', ...request }
-      records.push(record)
-      return record
-    },
-    list: async () => [...records],
-    delete: async ({ id }) => {
-      records.splice(records.findIndex(record => record.id === id), 1)
-      return { id, deleted: true }
-    },
-  }
-  return { records, service }
-}
-
-function setup(options: { role?: 'router' | 'worker'; settings?: Partial<SharedSettings>; schedule?: boolean } = {}) {
+function setup(options: { role?: 'router' | 'worker'; settings?: Partial<SharedSettings>; quiet?: { quietStart: string; quietEnd: string } } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'dsa-records-'))
-  const reminders = fakeSchedule()
   const tools = recordTools(options.role ?? 'router', {
-    target: () => ({ store: new RecordStore(root), zone: ZONE, sessionId: 'r1', leadMinutes: 30 }),
+    target: () => ({ store: new RecordStore(root), zone: ZONE, assistant: { reminderLeadMinutes: 30, quietStart: '', quietEnd: '', ...options.quiet } }),
     settings: () => ({ ...DEFAULTS, ...options.settings }) as SharedSettings,
-    schedule: () => (options.schedule === false ? undefined : reminders.service),
   }) as Tool[]
   const call = (name: string, args: Record<string, unknown>) => (tools.find(tool => tool.name === name) as Tool).execute(args, {})
   const file = (path: string) => readFileSync(join(root, path), 'utf8')
-  return { root, tools, call, file, reminders: reminders.records }
+  return { root, tools, call, file }
 }
 
 beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'], now: NOW }) })
 afterEach(() => { vi.useRealTimers() })
 
 describe('calendar_add', () => {
-  it('stores a local time as UTC and sets the reminder at the lead time', async () => {
-    const { call, file, reminders } = setup()
+  it('stores a local time as UTC and says when the reminder will come', async () => {
+    const { call, file } = setup()
     const result = await call('calendar_add', { title: '看牙医', kind: '日程', date: '2026-11-05', time: '14:30' })
     expect(result.ok).toBe(true)
     expect(result.message).toContain('11/05 周四 14:30 · 日程 · 看牙医')
-    expect(result.message).toContain('Reminder set')
+    expect(result.message).toContain('A reminder will come 30 minutes before, at 14:00.')
     expect(file('ddl.md')).toContain('- [ ] 2026-11-05T19:30Z · 日程 · 看牙医')
-    expect(reminders).toHaveLength(1)
-    expect(reminders[0]).toMatchObject({ title: '看牙医', at: '2026-11-05T19:00:00.000Z' })
-    expect(reminders[0]?.prompt).toContain('日程提醒：')
   })
 
-  it('applies the default times and sets no reminder without a clock time', async () => {
-    const { call, file, reminders } = setup()
+  it('applies the default times and promises no reminder without a clock time', async () => {
+    const { call, file } = setup()
     await call('calendar_add', { title: '交水电费', kind: 'DDL', date: '2026-11-06' })
     await call('calendar_add', { title: '回老家', kind: '日程', date: '2026-11-07' })
     await call('calendar_add', { title: '买新眼镜', kind: 'DDL' })
@@ -76,7 +51,6 @@ describe('calendar_add', () => {
     expect(text).toContain('- [ ] 无日期 · DDL · 买新眼镜')
     expect(text.indexOf('交水电费')).toBeLessThan(text.indexOf('回老家'))
     expect(text.indexOf('回老家')).toBeLessThan(text.indexOf('买新眼镜'))
-    expect(reminders).toEqual([])
   })
 
   it('refuses a past time and malformed input without writing', async () => {
@@ -88,25 +62,46 @@ describe('calendar_add', () => {
     expect(readdirSync(root)).toEqual([])
   })
 
-  it('says so when it is too late for the lead time, or reminders are unavailable', async () => {
+  it('says so when it is too late for the lead time', async () => {
     const soon = setup()
     const result = await soon.call('calendar_add', { title: '开会', kind: '日程', date: '2026-11-02', time: '07:10' })
     expect(result.ok).toBe(true)
-    expect(result.message).toContain('no reminder was set')
-    expect(soon.reminders).toEqual([])
-    const none = setup({ schedule: false })
-    expect((await none.call('calendar_add', { title: '开会', kind: '日程', date: '2026-11-05', time: '10:00' })).message).toContain('Reminders are unavailable')
+    expect(result.message).toContain('no reminder will come')
   })
 
-  it('leaves out the reminder when asked', async () => {
-    const { call, reminders } = setup()
-    await call('calendar_add', { title: '开会', kind: '日程', date: '2026-11-05', time: '10:00', remind: false })
-    expect(reminders).toEqual([])
+  it('leaves out the reminder when asked, and marks that in the file', async () => {
+    const { call, file } = setup()
+    const result = await call('calendar_add', { title: '开会', kind: '日程', date: '2026-11-05', time: '10:00', remind: false })
+    expect(result.message).not.toContain('reminder')
+    expect(file('ddl.md')).toContain('· 日程 · 开会（不提醒）')
+    await call('calendar_update', { match: '开会', action: 'change', time: '11:00' })
+    expect(file('ddl.md')).toContain('· 日程 · 开会（不提醒）')
+    const again = await call('calendar_update', { match: '开会', action: 'change', remind: true })
+    expect(again.message).toContain('A reminder will come')
+    expect(file('ddl.md')).not.toContain('不提醒')
   })
 
-  it('records each kind of repeat in local time with a matching reminder', async () => {
-    const { call, file, reminders } = setup()
-    await call('calendar_add', { title: '吃药', kind: '日程', repeat: 'daily', time: '08:00' })
+  it('says where quiet hours move a reminder', async () => {
+    const { call } = setup({ quiet: { quietStart: '22:00', quietEnd: '08:00' } })
+    const morning = await call('calendar_add', { title: '早会', kind: '日程', date: '2026-11-05', time: '08:15' })
+    expect(morning.message).toContain('it will come at 11/05 08:00 instead')
+    const night = await call('calendar_add', { title: '夜班', kind: '日程', date: '2026-11-05', time: '23:30' })
+    expect(night.message).toContain('it will come at 11/05 21:59 instead')
+  })
+
+  it('reads a time in another zone when told, showing it in theirs', async () => {
+    const { call, file } = setup()
+    const result = await call('calendar_add', { title: '东京开会', kind: '日程', date: '2026-11-05', time: '15:00', time_zone: 'Asia/Tokyo' })
+    expect(result.ok).toBe(true)
+    expect(file('ddl.md')).toContain('2026-11-05T06:00Z · 日程 · 东京开会')
+    expect(result.message).toContain('11/05 周四 01:00')
+    expect((await call('calendar_add', { title: 'x', kind: '日程', date: '2026-11-05', time: '15:00', time_zone: '东京' })).ok).toBe(false)
+  })
+
+  it('records each kind of repeat in local time', async () => {
+    const { call, file } = setup()
+    const first = await call('calendar_add', { title: '吃药', kind: '日程', repeat: 'daily', time: '08:00' })
+    expect(first.message).toContain('A reminder will come 30 minutes before each time')
     await call('calendar_add', { title: '钢琴课', kind: '日程', repeat: 'weekly', date: '2026-11-04', time: '19:00' })
     await call('calendar_add', { title: '健身', kind: '日程', repeat: 'weekly', weekdays: [5, 1, 3], time: '00:10' })
     await call('calendar_add', { title: '交房租', kind: 'DDL', repeat: 'monthly', date: '2026-12-05', time: '09:00' })
@@ -118,12 +113,6 @@ describe('calendar_add', () => {
     expect(text).toContain('- 每月5日 09:00 · DDL · 交房租')
     expect(text).toContain('- 每年3月5日 · 日程 · 妈妈生日')
     expect(text.indexOf('## 重复')).toBeLessThan(text.indexOf('## 待完成'))
-    expect(reminders[0]).toMatchObject({ daily: { time: '07:30:00', time_zone: ZONE } })
-    expect(reminders[1]).toMatchObject({ weekly: { time: '18:30:00', weekdays: [3] } })
-    // A lead that would cross midnight stops at the start of the day.
-    expect(reminders[2]).toMatchObject({ weekly: { time: '00:00:00', weekdays: [1, 3, 5] } })
-    expect(reminders[3]).toMatchObject({ cron: { expression: '30 8 5 * *', time_zone: ZONE } })
-    expect(reminders).toHaveLength(4)
   })
 
   it('needs a date for a repeat that has no other anchor', async () => {
@@ -145,8 +134,8 @@ describe('calendar_add', () => {
 })
 
 describe('calendar_update', () => {
-  it('moves an item and its reminder, keeping what was not changed', async () => {
-    const { call, file, reminders } = setup()
+  it('moves an item, keeping what was not changed', async () => {
+    const { call, file } = setup()
     await call('calendar_add', { title: '看牙医', kind: '日程', date: '2026-11-05', time: '14:30' })
     const byDate = await call('calendar_update', { match: '牙医', action: 'change', date: '2026-11-06' })
     expect(byDate.message).toContain('11/06 周五 14:30')
@@ -154,8 +143,7 @@ describe('calendar_update', () => {
     const byTime = await call('calendar_update', { match: '看牙医', action: 'change', time: '16:00' })
     expect(byTime.ok).toBe(true)
     expect(file('ddl.md')).toContain('2026-11-06T21:00Z · 日程 · 看牙医')
-    expect(reminders).toHaveLength(1)
-    expect(reminders[0]).toMatchObject({ at: '2026-11-06T20:30:00.000Z' })
+    expect(byTime.message).toContain('A reminder will come 30 minutes before, at 15:30.')
   })
 
   it('keeps a span\'s length when it moves', async () => {
@@ -169,32 +157,21 @@ describe('calendar_update', () => {
     expect(text).toContain('2026-11-14T05:00Z – 2026-11-17T04:59Z · 日程 · 回老家')
   })
 
-  it('finishes, reopens, and removes, with the reminder following', async () => {
-    const { call, file, reminders } = setup()
+  it('finishes, reopens, and removes', async () => {
+    const { call, file } = setup()
     await call('calendar_add', { title: '看牙医', kind: '日程', date: '2026-11-05', time: '14:30' })
     await call('calendar_update', { match: '看牙医', action: 'done' })
     let text = file('ddl.md')
     expect(text.indexOf('- [x] 2026-11-05T19:30Z · 日程 · 看牙医（完成 2026-11-02T12:00Z）')).toBeGreaterThan(text.indexOf('## 已完成'))
-    expect(reminders).toEqual([])
     await call('calendar_update', { match: '看牙医', action: 'reopen' })
     text = file('ddl.md')
     expect(text).toContain('- [ ] 2026-11-05T19:30Z · 日程 · 看牙医\n')
-    expect(reminders).toHaveLength(1)
     await call('calendar_update', { match: '看牙医', action: 'remove' })
     expect(file('ddl.md')).not.toContain('看牙医')
-    expect(reminders).toEqual([])
   })
 
-  it('leaves a reminder the model set by hand alone', async () => {
-    const { call, reminders } = setup()
-    await call('calendar_add', { title: '看牙医', kind: '日程', date: '2026-11-05', time: '14:30', remind: false })
-    reminders.push({ id: 'hand', kind: 'at', title: '看牙医', prompt: '记得带病历', scheduledAt: '2026-11-05T12:00:00.000Z' })
-    await call('calendar_update', { match: '看牙医', action: 'remove' })
-    expect(reminders.map(record => record.id)).toEqual(['hand'])
-  })
-
-  it('tells same-named items apart by date, and removes the right reminder', async () => {
-    const { call, file, reminders } = setup()
+  it('tells same-named items apart by date', async () => {
+    const { call, file } = setup()
     await call('calendar_add', { title: '看牙医', kind: '日程', date: '2026-11-05', time: '14:30' })
     await call('calendar_add', { title: '看牙医', kind: '日程', date: '2026-11-12', time: '14:30' })
     const ambiguous = await call('calendar_update', { match: '看牙医', action: 'remove' })
@@ -205,7 +182,6 @@ describe('calendar_update', () => {
     expect(result.ok).toBe(true)
     expect(file('ddl.md')).toContain('2026-11-05T19:30Z')
     expect(file('ddl.md')).not.toContain('2026-11-12')
-    expect(reminders.map(record => record.at)).toEqual(['2026-11-05T19:00:00.000Z'])
   })
 
   it('lists what exists when nothing matches', async () => {
@@ -217,17 +193,14 @@ describe('calendar_update', () => {
   })
 
   it('changes a repeating item, and does not tick it', async () => {
-    const { call, file, reminders } = setup()
+    const { call, file } = setup()
     await call('calendar_add', { title: '吃药', kind: '日程', repeat: 'daily', time: '08:00' })
     await call('calendar_update', { match: '吃药', action: 'change', time: '09:00' })
     expect(file('ddl.md')).toContain('- 每天 09:00 · 日程 · 吃药')
-    expect(reminders).toHaveLength(1)
-    expect(reminders[0]).toMatchObject({ daily: { time: '08:30:00' } })
     await call('calendar_update', { match: '吃药', action: 'change', repeat: 'weekly', weekdays: [1, 2] })
     expect(file('ddl.md')).toContain('- 每周一二 09:00 · 日程 · 吃药')
     expect((await call('calendar_update', { match: '吃药', action: 'done' })).ok).toBe(false)
     expect((await call('calendar_update', { match: '吃药', action: 'remove' })).ok).toBe(true)
-    expect(reminders).toEqual([])
   })
 
   it('keeps a note when the title changes, and can change the note', async () => {

@@ -24,6 +24,8 @@ export interface WechatLinkDeps {
   readState(personId: string): WechatState | undefined
   /** Report an unexpected failure. */
   warn(message: string): void
+  /** An account has just been bound to this conversation, first or again. */
+  bound?(personId: string, sessionId: string): void
   now?(): number
 }
 
@@ -187,6 +189,9 @@ export class WechatLink {
             return
           }
           await robot.bind(personId, { sessionId })
+          await this.deps.writeState(personId, stored(state, this.now()))
+          this.deps.bound?.(personId, sessionId)
+          continue
         }
         await this.deps.writeState(personId, stored(state, this.now()))
       }

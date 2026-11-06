@@ -59,6 +59,10 @@ export const ASSISTANT_DEFAULTS = {
   sandboxMode: 'workspace-write',
   reminderLeadMinutes: 30,
   dailyBriefTime: '08:00',
+  heartbeatMinutes: 60,
+  heartbeatIdleWake: true,
+  quietStart: '22:00',
+  quietEnd: '08:00',
   watchdogStallMinutes: 10,
   wechatEnabled: true,
   wechatReplyMaxChars: 100,
@@ -71,6 +75,18 @@ export interface AssistantSettings {
   readonly reminderLeadMinutes: number
   /** `HH:MM` local time of the daily brief, or an empty string when it is off. */
   readonly dailyBriefTime: string
+  /** Minutes between heartbeats; 0 turns them off, and with them the wake-ups that have no other reason. */
+  readonly heartbeatMinutes: number
+  /** Whether a heartbeat with nothing due still reaches the model. */
+  readonly heartbeatIdleWake: boolean
+  /** `HH:MM` local start of the daily quiet hours; empty, like an end equal to it, means none. */
+  readonly quietStart: string
+  /** `HH:MM` local end of the daily quiet hours. */
+  readonly quietEnd: string
+  /** Start of the temporary quiet hours, epoch milliseconds. */
+  readonly tempQuietFrom?: number
+  /** End of the temporary quiet hours, epoch milliseconds. */
+  readonly tempQuietUntil?: number
   readonly watchdogStallMinutes: number
   readonly wechatEnabled: boolean
   readonly wechatReplyMaxChars: number
@@ -78,6 +94,12 @@ export interface AssistantSettings {
 
 /** The shortest WeChat message the settings allow (im-robot's own minimum). */
 export const MIN_WECHAT_REPLY_CHARS = 10
+
+/** The shortest heartbeat interval other than 0 (off), in minutes. */
+export const MIN_HEARTBEAT_MINUTES = 5
+
+/** The longest heartbeat interval: a day. */
+export const MAX_HEARTBEAT_MINUTES = 1440
 
 /** The shortest stall the watchdog acts on, in minutes. */
 export const MIN_WATCHDOG_MINUTES = 2
@@ -100,9 +122,10 @@ export interface Person {
   readonly name: string
   /** What the assistant calls its user; absent when they left it empty. */
   readonly address?: string
-  /** A local label for the bound WeChat account, shown in the IM tab. */
   /** Absolute workspace folder, chosen when the assistant is created. */
   readonly cwd?: string
+  /** Where the user said they are, in their words, when the assistant was created; the assistant works out the time zone from it. */
+  readonly zoneHint?: string
   /** The person's conversation; the host creates it and writes it back. */
   readonly sessionId?: string
   /** What this assistant changed from `ASSISTANT_DEFAULTS`. */
@@ -190,12 +213,14 @@ export function readPeople(value: unknown): Person[] {
     const address = text(record.address)
     const cwd = text(record.cwd)
     const sessionId = text(record.sessionId)
+    const zoneHint = text(record.zoneHint)
     const settings = readAssistantSettings(record.settings)
     people.push({
       id,
       name,
       ...(address === undefined ? {} : { address }),
       ...(cwd === undefined ? {} : { cwd }),
+      ...(zoneHint === undefined ? {} : { zoneHint }),
       ...(sessionId === undefined ? {} : { sessionId }),
       ...(settings === undefined ? {} : { settings }),
     })
@@ -206,6 +231,18 @@ export function readPeople(value: unknown): Person[] {
 /** @returns the integer when it is at least `min`, else undefined. */
 function atLeast(value: unknown, min: number): number | undefined {
   return typeof value === 'number' && Number.isInteger(value) && value >= min ? value : undefined
+}
+
+/** @returns a usable heartbeat interval: 0, or within the bounds. */
+function heartbeatInterval(value: unknown): number | undefined {
+  if (!Number.isInteger(value)) return undefined
+  const minutes = value as number
+  return minutes === 0 || (minutes >= MIN_HEARTBEAT_MINUTES && minutes <= MAX_HEARTBEAT_MINUTES) ? minutes : undefined
+}
+
+/** @returns a usable instant, epoch milliseconds. */
+function instant(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
 }
 
 /**
@@ -220,6 +257,12 @@ export function readAssistantSettings(value: unknown): Partial<AssistantSettings
     ...fieldOf('sandboxMode', SANDBOX_MODES.includes(record.sandboxMode as SandboxMode) ? record.sandboxMode as SandboxMode : undefined),
     ...fieldOf('reminderLeadMinutes', atLeast(record.reminderLeadMinutes, 0)),
     ...fieldOf('dailyBriefTime', typeof record.dailyBriefTime === 'string' ? record.dailyBriefTime.trim() : undefined),
+    ...fieldOf('heartbeatMinutes', heartbeatInterval(record.heartbeatMinutes)),
+    ...fieldOf('heartbeatIdleWake', typeof record.heartbeatIdleWake === 'boolean' ? record.heartbeatIdleWake : undefined),
+    ...fieldOf('quietStart', typeof record.quietStart === 'string' ? record.quietStart.trim() : undefined),
+    ...fieldOf('quietEnd', typeof record.quietEnd === 'string' ? record.quietEnd.trim() : undefined),
+    ...fieldOf('tempQuietFrom', instant(record.tempQuietFrom)),
+    ...fieldOf('tempQuietUntil', instant(record.tempQuietUntil)),
     ...fieldOf('watchdogStallMinutes', atLeast(record.watchdogStallMinutes, MIN_WATCHDOG_MINUTES)),
     ...fieldOf('wechatEnabled', typeof record.wechatEnabled === 'boolean' ? record.wechatEnabled : undefined),
     ...fieldOf('wechatReplyMaxChars', atLeast(record.wechatReplyMaxChars, MIN_WECHAT_REPLY_CHARS)),

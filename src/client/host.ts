@@ -7,6 +7,8 @@
  */
 
 /** Bound translator for this plugin's namespace. */
+import type { SessionListLike, SnapshotStoreLike, WorkspaceListLike } from './hidden-sessions.ts'
+
 export type Translate = (key: string, params?: Record<string, unknown>) => string
 
 /** An observable snapshot (`ObservableSnapshot` of `@deepseek-ai/dsh-client-store`). */
@@ -87,6 +89,13 @@ export interface RemoteSessionLike {
 /** `ctx.sessions` (`ISessions`), reduced to who retains a session. */
 export interface SessionsLike {
   retainInfo(id: string): Observable<{ readonly retainedBy: Readonly<Record<string, number | undefined>> }>
+  /** The session list the host's sidebar draws. */
+  readonly list?: SnapshotStoreLike<SessionListLike>
+}
+
+/** `ctx.workspaces` (`WorkspaceController`). */
+export interface WorkspacesLike {
+  readonly list?: SnapshotStoreLike<WorkspaceListLike>
 }
 
 /** `ctx.layout` (`LayoutService`). */

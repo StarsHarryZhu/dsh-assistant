@@ -8,13 +8,15 @@ The record tools and the file formats behind them: quick reads and writes of fix
 
 - The tools register in the hidden presets' scope only (`src/policy.ts`), never as global tools, so no other session sees them, and they appear in no fence's allowlist because a preset's own tools need none.
 - Every path stays inside the workspace: fixed file names, or a name passed through `namedFile`.
-- Format modules are pure, text in and text out; only `store.ts` touches files and only `reminders.ts` touches reminders. A format edits line by line, so hand-written lines survive.
+- Format modules are pure, text in and text out; only `store.ts` touches files. A format edits line by line, so hand-written lines survive.
 - A tool call reads, edits, and writes without yielding, so calls in this process cannot overwrite each other; writes go through a temporary file.
 - Tool results are `{ ok, message }` in English, since only the model reads them; a refusal is a normal result the model can act on, not a thrown error.
 - What the model keeps for itself is in English: `profile.md`, `persona.md`, and project goals, status, to-dos, and notes. Schedule titles, list items, memos, and log entries stay in the user's own words, because they are shown or read back to them; the formats of `ddl.md` and of list lines are unchanged for the same reason, and so is a reminder's prompt, which the automation page shows.
 - The profile has no member list. Its form of address holds only what the user asked for in chat: the assistant's settings are the starting point, and this overrides them.
 - Times in tool arguments and results are the user's own; the host converts them. Repeating items stay in local time in the file, one-off items in UTC.
-- A reminder belongs to the assistant conversation, whichever role made the call, because the host refuses reminders on a worker's session. It is found again by its title and its prompt's prefix, with no table beside it; a reminder set by hand with `schedule_create` is never touched.
+- Nothing here sets a reminder: the heartbeat reads `ddl.md` and gives them, so a tool only says when one will come. An item the user wants none for carries a fixed mark at the end of its title (`MUTED_MARK`).
+- A call may give a time in another zone (`time_zone`); the file holds UTC either way, and results show the user's own time. A repeating item follows the user's clock wherever they are.
+- The profile's `Time zone` holds one IANA name, which `profile_set` checks: every time the host handles follows it.
 - The persona's fixed core has no way in: its fields are a closed list and its values one line. The host, not the prompt, enforces the setting, the cooldown, and the length limit; a change the user asked for passes the cooldown.
 - Passwords, PINs, card numbers, and ID numbers are kept out by the router prompt's rule; no format detects them.
 
@@ -24,7 +26,6 @@ The record tools and the file formats behind them: quick reads and writes of fix
 - `store.ts` — one user's files: reads, atomic writes, name-safe paths.
 - `text.ts` — shared line edits: sections, insertion, one-line text, matching by name.
 - `calendar.ts` — edits of `ddl.md`: add, change, finish, reopen, remove, prune (its line formats belong to `ddl.ts` in the parent folder).
-- `reminders.ts` — keeps the host's reminders in step with the calendar.
 - `lists.ts` — `lists/<name>.md`: groups of things ticked off.
 - `memos.ts` — `memo.md`: named facts, a new value replacing the old.
 - `logs.ts` — `logs/<name>.md`: dated entries that keep their history.

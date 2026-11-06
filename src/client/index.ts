@@ -7,6 +7,7 @@
  *   creates one;
  * - the settings every assistant shares on the Plugins screen;
  * - plain titles for the record tools' calls in the conversation;
+ * - assistant conversations left out of the host's session lists;
  * - while the host's conversation view shows an assistant conversation: the header
  *   menu that switches assistants or creates one, the IM tab and the
  *   assistant's own settings tab among its view tabs, and a root attribute
@@ -20,7 +21,7 @@
  */
 
 import { RECORD_TOOLS } from '../shared/record-tools.ts'
-import { PACKAGE_NAME, PANEL_ID, PLUGIN_ID, readPeople } from '../shared/settings.ts'
+import { PACKAGE_NAME, PANEL_ID, PLUGIN_ID, PRESET_ID, WORKER_PRESET_ID, readPeople } from '../shared/settings.ts'
 import type {
   ClientContextLike,
   ConfigFormLike,
@@ -34,13 +35,16 @@ import type {
   SlotsLike,
   Translate,
   UiWorkspaceLike,
+  WorkspacesLike,
 } from './host.ts'
 import { rememberAssistant } from './assistants.ts'
+import { hideSessionRows, hideWorkspaceMembers } from './hidden-sessions.ts'
 import { createImView } from './im.tsx'
 import { en, fallbackT, zh } from './locales.ts'
 import { createMainPage } from './page.tsx'
 import { RecordRow } from './record-row.tsx'
 import { createAssistantSettings, createSettings } from './settings.tsx'
+import { watchSilentTurns } from './silent-turns.ts'
 import { createSwitcher } from './switcher.tsx'
 import css from './styles.css'
 
@@ -232,23 +236,48 @@ export function apply(ctx: ClientContextLike): void {
       scope.inject?.(['sessions'], (inner) => {
         const sessions = inner.get?.('sessions') as SessionsLike | undefined
         if (sessions === undefined) return
+        guard('session lists', () => {
+          const list = sessions.list
+          if (list === undefined) return
+          const ids = (): ReadonlySet<string> => new Set(readPeople(form.getSnapshot().value?.people).flatMap(person => person.sessionId ?? []))
+          const hidden = hideSessionRows(list, { ids, presets: [PRESET_ID, WORKER_PRESET_ID] })
+          inner.effect?.(() => hidden.restore, `${PLUGIN_ID}: session lists`)
+          inner.effect?.(() => {
+            let known = hidden.version()
+            hidden.refresh()
+            return form.subscribe(() => {
+              if (hidden.version() === known) return
+              known = hidden.version()
+              hidden.refresh()
+            })
+          }, `${PLUGIN_ID}: hidden sessions follow the assistant list`)
+          inner.inject?.(['workspaces'], (members) => {
+            const workspaces = (members.get?.('workspaces') as WorkspacesLike | undefined)?.list
+            if (workspaces !== undefined) members.effect?.(() => hideWorkspaceMembers(workspaces, hidden), `${PLUGIN_ID}: workspace members`)
+          })
+        })
         inner.effect?.(() => {
           let disposeViews: (() => void) | undefined
+          let disposeSilent: (() => void) | undefined
           const stop = watchAssistantView({ sessions, form }, (sessionId) => {
             const root = typeof document === 'undefined' ? undefined : document.documentElement
             if (sessionId === undefined) {
               root?.removeAttribute(ASSISTANT_ATTRIBUTE)
               disposeViews?.()
               disposeViews = undefined
+              disposeSilent?.()
+              disposeSilent = undefined
               return
             }
             rememberAssistant(sessionId)
             root?.setAttribute(ASSISTANT_ATTRIBUTE, sessionId)
             disposeViews ??= registerViews()
+            if (root !== undefined) disposeSilent ??= watchSilentTurns(root)
           })
           return () => {
             stop()
             disposeViews?.()
+            disposeSilent?.()
           }
         }, `${PLUGIN_ID}: assistant conversation tabs`)
       })

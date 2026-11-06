@@ -1,6 +1,6 @@
 /**
- * The record tools' names and the plain titles their calls show under: the
- * user reads these in the conversation, never a tool's name. Shared by the
+ * The names of the assistant conversation's own tools and the plain titles their
+ * calls show under: the user reads these in the conversation, never a tool's name. Shared by the
  * host's call presentation and the browser half's conversation row.
  * @module dsh-assisstant/shared/record-tools
  */
@@ -15,6 +15,12 @@ declare const TITLES: {
     readonly recall: readonly ["查记录", undefined];
     readonly profile_set: readonly ["记下你的信息", undefined];
     readonly persona_set: readonly ["调整说话方式", undefined];
+    readonly im_send: readonly ["发到微信", "text"];
+    readonly wake_after: readonly ["稍后再看", "reason"];
+    readonly wake_cancel: readonly ["取消稍后再看", "match"];
+    readonly quiet_set: readonly ["改勿扰时间", undefined];
+    readonly brief_set: readonly ["改早上提示时间", "time"];
+    readonly temp_move: readonly ["整理文件", "file"];
 };
 /** A record tool's name. */
 export type RecordToolName = keyof typeof TITLES;

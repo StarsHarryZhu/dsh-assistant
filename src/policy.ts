@@ -6,22 +6,25 @@
  * - router.md as the whole system prompt;
  * - contexts: the calendar, the workspace (who it is, profile, persona,
  *   projects), this week's schedule parsed from `ddl.md`, the balance
- *   reminder, the WeChat reply rule when the latest input came from WeChat, and
- *   the permission when it is not the default;
+ *   reminder, the chat app's rules while one is connected, the permission when
+ *   it is not the default, and the heartbeat with the quiet hours;
+ * - the clock, every few minutes, in the user's own time zone;
  * - the permission pin (the sandbox mode the assistant's IM tab chose, never
  *   ask); the model and effort are whatever the composer chose for this
  *   conversation;
  * - only complete-subagent's delegation and review tools among global tools;
- * - the record tools, the `balance_check` tool, and the `/ddl` command, which
- *   prints the week view itself.
+ * - the record tools, its own tools (the chat app, wake-ups, quiet hours, moving
+ *   files out of `temp/`), the `balance_check` tool, and the `/ddl` command,
+ *   which prints the week view itself.
  *
  * `role: worker` (the `dsh-assisstant-worker` preset every `delegate` child
- * runs on): worker.md, the calendar and workspace contexts, the record tools
- * but the profile's and persona's, and only `request_write_access` among
+ * runs on): worker.md, the clock, the calendar and workspace contexts, the record
+ * tools but the profile's and persona's, and only `request_write_access` among
  * global tools.
  * @module dsh-assisstant/policy
  */
 
+import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
@@ -30,10 +33,11 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import { guarded } from './host/service.ts'
 import type { AssistantService } from './host/service.ts'
 import { formatYuan, reminderFor } from './host/balance.ts'
-import { calendarText } from './host/calendar.ts'
-import { parseDdl, weekView } from './host/ddl.ts'
+import { assistantTools } from './host/assistant-tools.ts'
+import { calendarText, clockText, processZone, weekdayOf } from './host/calendar.ts'
+import { local, parseDdl, weekView } from './host/ddl.ts'
 import { assistantSettings } from './shared/settings.ts'
-import type { SandboxMode } from './shared/settings.ts'
+import type { Person, SandboxMode } from './shared/settings.ts'
 import { RecordStore } from './host/records/store.ts'
 import { recordTools } from './host/records/tools.ts'
 import { createToolFence } from './host/tool-fence.ts'
@@ -43,7 +47,6 @@ import type {
   AssemblyLike,
   CommandsLike,
   PresentationLike,
-  ScheduleLike,
   SessionLike,
   SystemPromptLike,
   ToolsLike,
@@ -83,9 +86,21 @@ interface HostContext {
   readonly agents: AgentsLike
   readonly dshAssisstant: AssistantService
   get(name: 'commands'): CommandsLike | undefined
-  get(name: 'schedule'): ScheduleLike | undefined
-  on(name: string, listener: (...args: never[]) => unknown): () => void
+  on(name: string, listener: (...args: never[]) => unknown, options?: { prepend?: boolean }): () => void
 }
+
+/** How often the model gets the time, in milliseconds, as the host's own clock does. */
+export const CLOCK_REFRESH_MS = 10 * 60_000
+
+/** The message source of the clock reading; the host's view folds it like any injected context. */
+const CLOCK_SOURCE = 'dsh-assisstant-clock'
+
+/** What an `agent/pre-step` hook gets and passes on. */
+interface PreStepInput {
+  readonly agent: AgentLike
+  readonly signal?: AbortSignal
+}
+type PreStepDecision = { readonly kind: string; readonly messages?: readonly unknown[] }
 
 /**
  * Keep only this role's section: the prompt is complete, so persona or
@@ -103,7 +118,7 @@ export function balanceText(service: AssistantService): string {
   const { balanceThreshold, balanceReminder } = service.settings()
   const reminder = reminderFor(service.balance(), balanceThreshold, balanceReminder)
   if (reminder === undefined) return ''
-  return `# Balance\n\nThe account balance is low. After you finish answering the user, add this sentence once, word for word, as the last line of this reply: ${reminder}\nDo not mention the balance otherwise.`
+  return `# Balance\n\nThe account balance is low. In your next reply to a message from the user, add this sentence once, word for word, as the last line: ${reminder}\nDo not mention the balance otherwise, and never for it alone.`
 }
 
 /** @returns what the router must know when an assistant's permission is not the default the prompt assumes. */
@@ -117,16 +132,35 @@ export function permissionText(mode: SandboxMode): string {
   return ''
 }
 
-/** @returns the WeChat reply rule when the latest input came from WeChat, else an empty string. */
+/** @returns the chat app's rules while one is connected, by where the user last wrote; else an empty string. */
 export function channelText(service: AssistantService, sessionId: string): string {
-  if (service.lastInput(sessionId) !== 'wechat') return ''
-  const chars = assistantSettings(service.personForSession(sessionId)).wechatReplyMaxChars
-  return [
-    '# Reply channel: WeChat',
-    '',
-    `The user wrote from WeChat, and your reply is sent there as chat messages of at most ${chars} characters each, split at sentence breaks. Write like a person chatting: plain text, no Markdown, short complete sentences, and keep the whole reply brief. Say only the result or what they need to decide; never report progress or steps.`,
-    'When a list, table, or set of steps must stay in one message, wrap that block in <keep> and </keep> (the markers are not shown; one block holds at most 2000 characters).',
-  ].join('\n')
+  const person = service.personForSession(sessionId)
+  if (person === undefined || !service.chatConnected(person)) return ''
+  const chars = assistantSettings(person).wechatReplyMaxChars
+  const outside = 'Turns no WeChat message started (heartbeats, worker reports, other system notes): your text stays in the app, and only `im_send` reaches them. Use it for whatever they must see, wherever they last wrote.'
+  const format = `Text for WeChat goes out as chat messages of at most ${chars} characters each, split at sentence breaks. Write it like a person chatting: plain text, no Markdown, short complete sentences, and keep the whole of it brief. Say only the result or what they need to decide; never report progress or steps. When a list, table, or set of steps must stay in one message, wrap that block in <keep> and </keep> (the markers are not shown; one block holds at most 2000 characters).`
+  return service.lastInput(sessionId) === 'wechat'
+    ? ['# Chat app: WeChat', '', `The user's latest message came from WeChat, and your final reply to it goes back there by itself: do not also call \`im_send\` for it. ${format}`, '', outside].join('\n')
+    : ['# Chat app: WeChat', '', `WeChat is connected, but the user's latest message came from the app, so answer it as usual, with no WeChat markers. ${outside}`, '', format].join('\n')
+}
+
+/** @returns the heartbeat and quiet hours as they stand, for the model to answer questions and tell what it may do. */
+export function heartbeatContext(service: AssistantService, person: Person, zone: string): string {
+  const settings = assistantSettings(person)
+  const when = (ms: number): string => {
+    const at = local(ms, zone)
+    return `${at.short} ${weekdayOf(at.iso)} ${at.time}`
+  }
+  const lines = ['# Heartbeat and quiet hours', '']
+  lines.push(settings.heartbeatMinutes > 0 ? `- Heartbeat: every ${settings.heartbeatMinutes} minutes.` : '- Heartbeat: off.')
+  lines.push(`- Daily brief: ${settings.dailyBriefTime === '' ? 'off' : settings.dailyBriefTime}. Reminders come ${settings.reminderLeadMinutes} minutes before timed items.`)
+  lines.push(settings.quietStart === '' || settings.quietStart === settings.quietEnd ? '- Daily quiet hours: none.' : `- Daily quiet hours: ${settings.quietStart}–${settings.quietEnd}.`)
+  if (settings.tempQuietUntil !== undefined && settings.tempQuietUntil > Date.now()) {
+    lines.push(`- Temporary quiet hours: until ${when(settings.tempQuietUntil)}${settings.tempQuietFrom !== undefined && settings.tempQuietFrom > Date.now() ? `, from ${when(settings.tempQuietFrom)}` : ''}.`)
+  }
+  const wakes = service.wakes(person)
+  if (wakes.length > 0) lines.push('- Wake-ups you set:', ...wakes.map(wake => `  - ${when(wake.at)}: ${wake.reason}`))
+  return lines.join('\n')
 }
 
 /**
@@ -178,9 +212,38 @@ export function apply(ctx: Context, config: Config): void {
         personaMaxChars: settings.personaMaxChars,
         personaSelfCorrect: settings.personaSelfCorrect,
         personaCooldownHours: settings.personaCooldownHours,
+        standInZone: processZone(),
       }, Date.now())
     },
   }))
+
+  // The host's own clock knows only the browser's and the device's zones.
+  const clockRead = new Map<string, { at: number; zone: string }>()
+  host.on('agent/pre-step', (async ({ agent, signal }: PreStepInput, next: () => Promise<PreStepDecision>) => {
+    const decision = await next()
+    if (decision.kind === 'reject' || signal?.aborted === true) return decision
+    try {
+      const now = Date.now()
+      const zone = zoneOf(agent)
+      const last = clockRead.get(agent.session.id)
+      // A newly recorded zone shows at once.
+      if (last !== undefined && last.zone === zone && now >= last.at && now - last.at < CLOCK_REFRESH_MS) return decision
+      clockRead.set(agent.session.id, { at: now, zone })
+      const text = clockText(new Date(now), zone)
+      return {
+        ...decision,
+        messages: [...decision.messages ?? [], {
+          id: randomUUID(),
+          role: 'user',
+          content: [{ type: 'text', text }],
+          source: { kind: CLOCK_SOURCE, form: 'snapshot', sections: [{ name: CLOCK_SOURCE, text }] },
+        }],
+      }
+    } catch (error) {
+      ctx.logger.warn(`the clock could not be read: ${String(error)}`)
+      return decision
+    }
+  }) as never, { prepend: true })
 
   // The fence and the permission pin come first: neither depends on the router's extras.
   const fence = createToolFence(host.tools, ALLOWED_TOOLS[role])
@@ -218,13 +281,14 @@ export function apply(ctx: Context, config: Config): void {
       const root = person?.cwd ?? session?.header.cwd
       return session === undefined || root === undefined
         ? undefined
-        : { store: new RecordStore(root), zone: service.zoneFor(session), sessionId: session.id, leadMinutes: assistantSettings(person).reminderLeadMinutes }
+        : { store: new RecordStore(root), zone: service.zoneFor(session), assistant: assistantSettings(person) }
     },
     settings: () => service.settings(),
-    schedule: () => host.get('schedule'),
   })) ctx.effect(() => host.tools.register(tool))
 
   if (role === 'worker') return
+
+  for (const tool of assistantTools({ service, person: personOf, zone: zoneOf })) ctx.effect(() => host.tools.register(tool))
 
   ctx.effect(() => host.systemPrompt.context({
     name: 'dsh-assisstant:schedule',
@@ -259,6 +323,15 @@ export function apply(ctx: Context, config: Config): void {
     order: 110,
     interpolate: false,
     text: assembly => permissionText(assistantSettings(personOf(assembly?.agent)).sandboxMode),
+  }))
+  ctx.effect(() => host.systemPrompt.context({
+    name: 'dsh-assisstant:heartbeat',
+    order: 111,
+    interpolate: false,
+    text: (assembly) => {
+      const person = personOf(assembly?.agent)
+      return person === undefined ? '' : heartbeatContext(service, person, zoneOf(assembly?.agent))
+    },
   }))
 
   // ---- the balance tool and /ddl ----

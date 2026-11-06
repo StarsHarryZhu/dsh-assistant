@@ -14,6 +14,9 @@
 /* The hidden preset is missing from the roster the header label reads, so the
    label would show its id; show the name instead (the label is the span with a
    title right after the header menu). */
+/* Heartbeats and other host notes wake the assistant every so often: no row for each. */
+:root[data-dsh-assisstant-session] [data-chat-flow-kind='turn-trigger'] { display: none; }
+:root[data-dsh-assisstant-session] [data-dsa-silent] { display: none; }
 :root[data-dsh-assisstant-session] .dsa-switcher + span[title] {
   font-size: 0;
 }

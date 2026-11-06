@@ -76,21 +76,30 @@ function named(naming: Naming): Pick<Person, 'name' | 'address'> {
  * @param view - the current view.
  * @param naming - its name and what it calls its user.
  * @param cwd - the workspace folder the user chose.
+ * @param zoneHint - where they say they are, in their own words; the assistant works out the time zone.
  * @returns the new assistant's id, or undefined when the write was refused.
  */
-export async function addPerson(form: ConfigFormLike, view: AssistantsView, naming: Naming, cwd: string): Promise<string | undefined> {
+export async function addPerson(form: ConfigFormLike, view: AssistantsView, naming: Naming, cwd: string, zoneHint = ''): Promise<string | undefined> {
   const id = newId()
-  const person: Person = { id, ...named(naming), cwd }
+  const hint = zoneHint.trim()
+  const person: Person = { id, ...named(naming), cwd, ...(hint === '' ? {} : { zoneHint: hint }) }
   const ok = await form.mutate([{ op: 'set', path: ['people'], value: plain([...view.people, person]) }], view.revision)
   return ok ? id : undefined
 }
 
 /** Save an assistant's name, what it calls its user, and its own settings; only what differs from the defaults is stored. */
 export function updateAssistant(form: ConfigFormLike, view: AssistantsView, id: string, naming: Naming, values: AssistantSettings): Promise<boolean> {
-  const settings = Object.fromEntries(Object.entries(values).filter(([key, value]) => ASSISTANT_DEFAULTS[key as keyof AssistantSettings] !== value))
+  const changed = Object.entries(values).filter(([key, value]) => (ASSISTANT_DEFAULTS as Record<string, unknown>)[key] !== value && value !== undefined)
   const people = view.people.map((person) => {
     if (person.id !== id) return person
-    const { name: _name, address: _address, settings: _settings, ...rest } = person
+    const { name: _name, address: _address, settings: stored, ...rest } = person
+    // Temporary quiet hours have no field on the form: the assistant sets them.
+    const { tempQuietFrom, tempQuietUntil } = stored ?? {}
+    const settings = {
+      ...Object.fromEntries(changed),
+      ...(tempQuietFrom === undefined ? {} : { tempQuietFrom }),
+      ...(tempQuietUntil === undefined ? {} : { tempQuietUntil }),
+    }
     return { ...rest, ...named(naming), ...(Object.keys(settings).length === 0 ? {} : { settings }) }
   })
   return form.mutate([{ op: 'set', path: ['people'], value: plain(people) }], view.revision)
@@ -104,6 +113,17 @@ export function setSandboxMode(form: ConfigFormLike, view: AssistantsView, id: s
     const { sandboxMode: _old, ...others } = stored ?? {}
     const settings = mode === ASSISTANT_DEFAULTS.sandboxMode ? others : { ...others, sandboxMode: mode }
     return { ...rest, ...(Object.keys(settings).length === 0 ? {} : { settings }) }
+  })
+  return form.mutate([{ op: 'set', path: ['people'], value: plain(people) }], view.revision)
+}
+
+/** End an assistant's temporary quiet hours. */
+export function clearTemporaryQuiet(form: ConfigFormLike, view: AssistantsView, id: string): Promise<boolean> {
+  const people = view.people.map((person) => {
+    if (person.id !== id) return person
+    const { settings: stored, ...rest } = person
+    const { tempQuietFrom: _from, tempQuietUntil: _until, ...others } = stored ?? {}
+    return { ...rest, ...(Object.keys(others).length === 0 ? {} : { settings: others }) }
   })
   return form.mutate([{ op: 'set', path: ['people'], value: plain(people) }], view.revision)
 }

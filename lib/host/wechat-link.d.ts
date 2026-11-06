@@ -21,6 +21,8 @@ export interface WechatLinkDeps {
     readState(personId: string): WechatState | undefined;
     /** Report an unexpected failure. */
     warn(message: string): void;
+    /** An account has just been bound to this conversation, first or again. */
+    bound?(personId: string, sessionId: string): void;
     now?(): number;
 }
 /** Plain-language reasons shown on the page. */

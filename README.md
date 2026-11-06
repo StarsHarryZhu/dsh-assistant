@@ -36,15 +36,18 @@ Two hidden agent presets, one visible conversation:
 - One long-running conversation per assistant, with automatic compaction.
 - Model and reasoning effort per conversation, and a multi-select list of worker models.
 - Records as plain files in the workspace: schedule (`ddl.md`), lists, memos, logs, profile, persona, projects. Passwords, card numbers, and ID numbers are never recorded.
-- Schedule, reminders, a daily brief, a watchdog, and a `/ddl` week view.
+- A schedule with reminders and a `/ddl` week view, a daily brief every morning, and a watchdog.
+- A heartbeat instead of automation tasks: the assistant wakes on its own every hour, and to the minute for what is due, and it can set its own wake-ups. Whether a heartbeat with nothing due calls the model is a setting.
+- Quiet hours, daily and temporary. Reminders inside them move to the evening before or the next morning; other messages wait. The assistant changes them only when you ask.
+- Your own time zone in the profile, worked out from where you say you are and from your schedule, never from the device.
 - A balance reminder for the DeepSeek account, with configurable wording.
-- WeChat through `im-robot`: scan to bind, then chat from WeChat in the same conversation. Text only, split into short messages.
+- WeChat through `im-robot`: scan to bind, and the assistant introduces itself; then chat from WeChat in the same conversation. Everything you need to see reaches WeChat, wherever you last wrote. Images, files, voice, and video you send land in `temp/` in the workspace, and replies are text split into short messages.
 - Tool isolation in both directions.
 
 ## Settings
 
 - **Plugins page** (shared by every assistant): worker models, compaction ratio, balance threshold and check interval, reminder wording, persona and profile limits.
-- **Each assistant's Settings tab**: name and form of address, reminder lead time, daily brief time, watchdog timeout, WeChat switch and message length. Its **Shared settings** button opens the Plugins page settings.
+- **Each assistant's Settings tab**: name and form of address, reminder lead time, daily brief time, heartbeat interval and idle wake, quiet hours, watchdog timeout, WeChat switch and message length. Its **Shared settings** button opens the Plugins page settings.
 
 Numbers can be cleared and retyped; values are corrected when the field is left.
 
@@ -59,17 +62,19 @@ Installing either one standalone switches the bundled copy off automatically.
 
 ## Status and roadmap
 
-Working today: the parent/worker split, per-worker model and reasoning effort, workspace confinement with parent-approved access, automatic compaction, records, schedule and reminders, WeChat, and the watchdog.
+Working today: the parent/worker split, per-worker model and reasoning effort, workspace confinement with parent-approved access, automatic compaction, records, schedule and reminders, heartbeats and quiet hours, WeChat in and out, and the watchdog.
 
 Next: single-window self-management for the parent agent — its own context, model choice, and long-running work handled in the same conversation, with fewer handoffs and less supervision.
 
 ## Known limits
 
-- Assistant conversations still appear under "Ungrouped" in the host's session list.
+- The sidebar's content search can still find assistant conversations.
+- Heartbeats stop while the app is closed or the computer sleeps; what is still ahead is given on waking.
+- Files in `temp/` are not cleaned up automatically.
 - Only tools are isolated; global prompt contexts injected by other plugins are not filtered.
-- WeChat is text only; images and files are not supported yet.
+- The assistant cannot send images or files to WeChat yet. Voice stays as raw SILK audio, with WeChat's transcript as its text.
 - Workers cannot modify anything outside their workspace; on DSH 0.2.1-rc.5 an approved path only reaches the write/edit tools, not shell commands.
-- Verified on macOS with Desktop 0.2.1-rc.5; other systems are untested.
+- Verified on macOS with Desktop 0.2.1-rc.5 and 0.2.2-rc.1; other systems are untested.
 
 ## Development
 

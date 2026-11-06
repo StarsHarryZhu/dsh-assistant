@@ -85,6 +85,7 @@ function CreateForm(props: { view: AssistantsView; deps: PageDeps; t: Translate;
   const { t, view } = props
   const [name, setName] = useState('')
   const [address, setAddress] = useState('')
+  const [zoneHint, setZoneHint] = useState('')
   const [folder, setFolder] = useState<string | undefined>()
   const [pickFailed, setPickFailed] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -95,7 +96,7 @@ function CreateForm(props: { view: AssistantsView; deps: PageDeps; t: Translate;
     if (!ready) return
     setBusy(true)
     setFailed(false)
-    const id = await addPerson(props.deps.form, view, { name, address }, folder)
+    const id = await addPerson(props.deps.form, view, { name, address }, folder, zoneHint)
     setBusy(false)
     if (id === undefined) setFailed(true)
     else props.onDone(id)
@@ -113,6 +114,11 @@ function CreateForm(props: { view: AssistantsView; deps: PageDeps; t: Translate;
         <span>{t('form.address')}</span>
         <input className="dsa-text" value={address} placeholder={t('form.address.placeholder')}
           onChange={(event) => { setAddress(event.target.value) }} />
+      </label>
+      <label className="dsa-field">
+        <span>{t('form.zone')}</span>
+        <input className="dsa-text" value={zoneHint} placeholder={t('form.zone.placeholder')}
+          onChange={(event) => { setZoneHint(event.target.value) }} />
       </label>
       <div className="dsa-field">
         <span>{t('form.folder')}</span>

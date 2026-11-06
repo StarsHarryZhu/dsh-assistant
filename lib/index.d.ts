@@ -11,7 +11,9 @@
  * - titles each assistant conversation with its assistant's name;
  * - polls the RMB balance of the DeepSeek account;
  * - runs the page's WeChat requests against the im-robot sub-plugin and
- *   stores each binding state for the page to draw.
+ *   stores each binding state for the page to draw;
+ * - runs each assistant's heartbeat, and removes the automation tasks earlier
+ *   versions left in the host.
  * @module dsh-assisstant
  */
 import type { Context, Volatile } from '@deepseek-ai/cordis';

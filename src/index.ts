@@ -11,7 +11,9 @@
  * - titles each assistant conversation with its assistant's name;
  * - polls the RMB balance of the DeepSeek account;
  * - runs the page's WeChat requests against the im-robot sub-plugin and
- *   stores each binding state for the page to draw.
+ *   stores each binding state for the page to draw;
+ * - runs each assistant's heartbeat, and removes the automation tasks earlier
+ *   versions left in the host.
  * @module dsh-assisstant
  */
 
@@ -20,15 +22,17 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Context, Volatile } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { COMPACT_RATIO_RANGE, DEFAULTS, DEFAULT_WORKER_MODELS, MAX_BALANCE_CHECK_MINUTES, PLUGIN_ID, PRESET_ID, WORKER_PRESET_ID, assistantSettings, readPeople, readWorkerModels, readWechatRequest, readWechatStates } from './shared/settings.ts'
+import { ASSISTANT_DEFAULTS, COMPACT_RATIO_RANGE, DEFAULTS, DEFAULT_WORKER_MODELS, MAX_BALANCE_CHECK_MINUTES, PLUGIN_ID, PRESET_ID, WORKER_PRESET_ID, assistantSettings, readPeople, readWorkerModels, readWechatRequest, readWechatStates } from './shared/settings.ts'
 import type { Person, WechatState, WorkerModel } from './shared/settings.ts'
 import { queryBalance } from './host/balance.ts'
 import type { BalanceState } from './host/balance.ts'
-import { DailyBrief } from './host/brief.ts'
-import { processZone, zoneProjection } from './host/calendar.ts'
-import type { ZoneState } from './host/calendar.ts'
+import { TEMP_FOLDER } from './host/assistant-tools.ts'
+import { processZone } from './host/calendar.ts'
+import { Heartbeat, clearAutomationTasks } from './host/heartbeat.ts'
 import { hidePreset } from './host/hide-preset.ts'
-import { greetingText, mergePeople, needingSessions, removedPeople } from './host/people.ts'
+import { greetingText, introductionText, mergePeople, needingSessions, removedPeople } from './host/people.ts'
+import { quietSpanAt } from './host/quiet.ts'
+import { PROFILE_FILE, readProfileZone } from './host/records/profile.ts'
 import { presetOf } from './host/compat.ts'
 import { SettingsWriter, guarded, outsideTransactions, sendHostNote } from './host/service.ts'
 import { TitlePin } from './host/title.ts'
@@ -42,9 +46,9 @@ import type {
   DeepseekAccountLike,
   ImBindingStatus,
   ImRobotLike,
+  ScheduleLike,
   SessionControllerLike,
   SessionLike,
-  ProjectionHandleLike,
   SessionProjectionsLike,
   SessionTitleLike,
   SettingsLike,
@@ -106,6 +110,7 @@ interface HostContext {
   get(name: 'deepseekAccount'): DeepseekAccountLike | undefined
   get(name: 'imRobot'): ImRobotLike | undefined
   get(name: 'completeSubagent'): CompleteSubagentLike | undefined
+  get(name: 'schedule'): ScheduleLike | undefined
   get(name: 'sessionProjections'): SessionProjectionsLike | undefined
   get(name: 'sessionTitle'): SessionTitleLike | undefined
   get(name: 'hmr'): unknown
@@ -173,12 +178,35 @@ export function apply(ctx: Context, config: Config): void {
   let people = storedPeople()
   let balance: BalanceState = { status: 'unknown', checkedAt: 0 }
   const inputs = new Map<string, InputChannel>()
-  let zones: ProjectionHandleLike<ZoneState> | undefined
-  ctx.inject(['sessionProjections'], (scope) => {
-    const projections = (scope as unknown as { sessionProjections: SessionProjectionsLike }).sessionProjections
-    void Promise.resolve(projections.register<ZoneState>(zoneProjection))
-      .then((handle) => { zones = handle }, (error: unknown) => { warn(`the time-zone projection could not be registered: ${String(error)}`) })
-  })
+  /** Sessions whose running turn holds a message from the user. */
+  const userTurns = new Set<string>()
+  /** Sessions whose next turn may reach the user in quiet hours: a wake-up they asked for, or their own new binding. */
+  const quietPasses = new Set<string>()
+  const readText = (path: string): string | undefined => {
+    try {
+      return readFileSync(path, 'utf8')
+    } catch {
+      return undefined
+    }
+  }
+  const zoneOfFolder = (cwd: string | undefined): string =>
+    (cwd === undefined ? undefined : readProfileZone(readText(join(cwd, PROFILE_FILE)))) ?? processZone()
+  const chatConnected = (person: Person): boolean =>
+    assistantSettings(person).wechatEnabled
+    && readWechatStates(live(config?.wechatState))[person.id]?.status === 'bound'
+    && typeof host.get('imRobot')?.send === 'function'
+  /** Send to the chat app, logging instead of throwing; false when it could not go out. */
+  const sendNow = (person: Person, text: string): boolean => {
+    try {
+      const robot = host.get('imRobot')
+      if (robot?.send === undefined) return false
+      robot.send(person.id, text)
+      return true
+    } catch (error) {
+      warn(`could not send to the chat app of ${person.name}: ${String(error)}`)
+      return false
+    }
+  }
 
   const refreshBalance = async (): Promise<BalanceState> => {
     balance = await queryBalance({
@@ -196,13 +224,36 @@ export function apply(ctx: Context, config: Config): void {
     refreshBalance,
     lastInput: sessionId => inputs.get(sessionId) ?? 'web',
     markInput: (sessionId, channel) => { inputs.set(sessionId, channel) },
-    zoneFor: (session) => {
-      try {
-        return (session === undefined ? undefined : zones?.stateOf(session)?.timeZone) ?? processZone()
-      } catch {
-        return processZone()
+    zoneFor: session => zoneOfFolder(session === undefined ? undefined : service.personForSession(session.id)?.cwd ?? session.header.cwd),
+    chatConnected,
+    sendToChat: (person, sessionId, text) => {
+      if (!chatConnected(person)) return { status: 'unavailable' }
+      const quiet = quietSpanAt(assistantSettings(person), Date.now(), zoneOfFolder(person.cwd))
+      if (quiet !== undefined && !userTurns.has(sessionId) && !quietPasses.has(sessionId)) {
+        heartbeat.hold(person.id, text)
+        return { status: 'held', until: quiet.end }
       }
+      return sendNow(person, text) ? { status: 'sent' } : { status: 'unavailable' }
     },
+    turnFromUser: sessionId => userTurns.has(sessionId),
+    wakes: person => heartbeat.wakes(person.id),
+    addWake: (person, wake) => heartbeat.addWake(person.id, wake),
+    cancelWakes: (person, match) => heartbeat.cancelWakes(person.id, match),
+    updateSettings: (personId, patch) => writer.write(() => {
+      let changed = false
+      const merged = storedPeople().map((person) => {
+        if (person.id !== personId) return person
+        changed = true
+        const next: Record<string, unknown> = { ...person.settings, ...patch }
+        for (const [key, value] of Object.entries(next)) {
+          // Only what differs from the defaults is stored.
+          if (value === undefined || (ASSISTANT_DEFAULTS as Record<string, unknown>)[key] === value) delete next[key]
+        }
+        const { settings: _old, ...rest } = person
+        return { ...rest, ...(Object.keys(next).length === 0 ? {} : { settings: next }) }
+      })
+      return changed ? { people: merged } : undefined
+    }),
   }
   ctx.provide('dshAssisstant', service)
 
@@ -252,7 +303,7 @@ export function apply(ctx: Context, config: Config): void {
           const merged = mergePeople(storedPeople(), new Map([[person.id, { sessionId }]]))
           return merged === undefined ? undefined : { people: merged }
         })
-        note(sessionId, greetingText())
+        note(sessionId, greetingText(person))
       } catch (error) {
         warn(`could not create the conversation for ${person.name}: ${String(error)}`)
       } finally {
@@ -278,17 +329,31 @@ export function apply(ctx: Context, config: Config): void {
     writeState,
     readState: personId => readWechatStates(live(config?.wechatState))[personId],
     warn,
+    bound: (personId, sessionId) => {
+      const person = people.find(entry => entry.id === personId)
+      if (person !== undefined) background('WeChat options', () => host.get('imRobot')?.setBindingOptions?.(person.id, robotOptions(person)))
+      quietPasses.add(sessionId)
+      note(sessionId, introductionText())
+    },
   })
   link.seen(readWechatRequest(live(config?.wechatRequest)))
   ctx.effect(() => () => link.dispose())
+  /** @returns what im-robot should know about one assistant's account. */
+  const robotOptions = (person: Person) => {
+    const { wechatEnabled, wechatReplyMaxChars } = assistantSettings(person)
+    return {
+      enabled: wechatEnabled,
+      replyMaxChars: wechatReplyMaxChars,
+      ...(person.cwd === undefined ? {} : { mediaDir: join(person.cwd, TEMP_FOLDER) }),
+    }
+  }
   /** Give each bound account its assistant's options; an account not logged in has none to change. */
   const pushRobotOptions = (): void => {
     const robot = host.get('imRobot')
     const states = readWechatStates(live(config?.wechatState))
     for (const person of people) {
       if (states[person.id]?.status !== 'bound') continue
-      const { wechatEnabled, wechatReplyMaxChars } = assistantSettings(person)
-      background('WeChat options', () => robot?.setBindingOptions?.(person.id, { enabled: wechatEnabled, replyMaxChars: wechatReplyMaxChars }))
+      background('WeChat options', () => robot?.setBindingOptions?.(person.id, robotOptions(person)))
     }
   }
   ctx.inject(['imRobot'], () => { pushRobotOptions() })
@@ -307,7 +372,7 @@ export function apply(ctx: Context, config: Config): void {
     return changed ? { wechatState: states } : undefined
   }))
 
-  // ---- system notes, the watchdog, and the daily brief ----
+  // ---- system notes, the watchdog, and the heartbeat ----
   const note = (sessionId: string, text: string): void => {
     const controller = host.get('sessionController')
     if (controller === undefined) return
@@ -336,31 +401,50 @@ export function apply(ctx: Context, config: Config): void {
       titles.observe(session, (event as { data?: { title?: string; source?: { kind?: string } } }).data)
     }
     if (preset === PRESET_ID && event.type === 'user/message') {
-      const source = (event as { data?: { source?: { clientTimeZone?: unknown } } }).data?.source
+      const source = (event as { data?: { source?: { kind?: unknown; clientTimeZone?: unknown } } }).data?.source
       if (typeof source?.clientTimeZone === 'string') service.markInput(session.id, 'web')
+      if (source?.kind === 'user') userTurns.add(session.id)
+    }
+    if (preset === PRESET_ID && event.type === 'turn/start') userTurns.delete(session.id)
+    if (preset === PRESET_ID && event.type === 'turn/end') {
+      userTurns.delete(session.id)
+      quietPasses.delete(session.id)
     }
   }) as never)
-  const brief = new DailyBrief({
-    now: () => new Date(),
-    time: person => assistantSettings(person).dailyBriefTime,
+  const heartbeat = new Heartbeat({
+    now: Date.now,
     people: () => people,
-    zoneFor: person => service.zoneFor(person.sessionId === undefined ? undefined : host.get('agents').get(person.sessionId)?.session),
-    read: (path) => {
-      try {
-        return readFileSync(path, 'utf8')
-      } catch {
-        return undefined
-      }
+    zoneFor: person => zoneOfFolder(person.cwd),
+    read: readText,
+    running: sessionId => host.get('agents').get(sessionId)?.status === 'running',
+    chatConnected,
+    sendNote: (sessionId, text) => {
+      const person = service.personForSession(sessionId)
+      // A wake-up that came through quiet hours may reach the user in them, once.
+      if (person !== undefined && quietSpanAt(assistantSettings(person), Date.now(), zoneOfFolder(person.cwd)) !== undefined) quietPasses.add(sessionId)
+      note(sessionId, text)
     },
-    send: note,
-    statePath: join(dataDirectory(), 'brief.json'),
+    sendHeld: sendNow,
+    warn,
+    directory: join(dataDirectory(), 'heartbeat'),
   })
   const minute = setInterval(guarded(warn, 'minute timer', () => {
     watchdog.tick()
-    brief.tick()
+    heartbeat.tick()
   }), 60_000)
   minute.unref?.()
   ctx.effect(() => () => clearInterval(minute))
+
+  // ---- what earlier versions left among the host's automation tasks ----
+  ctx.inject(['schedule'], () => {
+    background('automation task clean-up', async () => {
+      const schedule = host.get('schedule')
+      if (schedule === undefined) return
+      for (const person of people) {
+        if (person.sessionId !== undefined) await clearAutomationTasks(schedule, person.sessionId)
+      }
+    })
+  })
 
   // ---- the balance ----
   let timer: ReturnType<typeof setInterval> | undefined
@@ -383,6 +467,7 @@ export function apply(ctx: Context, config: Config): void {
     const next = storedPeople()
     for (const person of removedPeople(people, next)) {
       background('WeChat unbinding', () => link.forget(person.id))
+      heartbeat.forget(person.id)
       if (person.sessionId !== undefined) watchdog.forget(person.sessionId)
     }
     const moved = next.filter(person => assistantSettings(person).sandboxMode !== assistantSettings(people.find(entry => entry.id === person.id)).sandboxMode)

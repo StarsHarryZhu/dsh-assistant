@@ -7,8 +7,9 @@
 
 import { randomUUID } from 'node:crypto'
 import { PLUGIN_ID } from '../shared/settings.ts'
-import type { Person, WorkerModel } from '../shared/settings.ts'
+import type { AssistantSettings, Person, WorkerModel } from '../shared/settings.ts'
 import type { BalanceState } from './balance.ts'
+import type { WakeRequest } from './heartbeat.ts'
 import type { HostNoteLike, SessionControllerLike, SessionLike, SettingsLike } from './types.ts'
 
 /** The settings every assistant shares, as plain values. Each assistant's own are on its assistant list entry. */
@@ -71,6 +72,14 @@ export async function sendHostNote(controller: Pick<SessionControllerLike, 'reso
 /** Where a session's latest user input came from. */
 export type InputChannel = 'web' | 'wechat'
 
+/** What became of a message for the user's chat app. */
+export type ChatOutcome =
+  | { readonly status: 'sent' }
+  /** Quiet hours are on, so the host sends it when they end. */
+  | { readonly status: 'held'; readonly until: number }
+  /** No chat app is connected and switched on. */
+  | { readonly status: 'unavailable' }
+
 /** The service. */
 export interface AssistantService {
   settings(): SharedSettings
@@ -80,8 +89,20 @@ export interface AssistantService {
   refreshBalance(): Promise<BalanceState>
   lastInput(sessionId: string): InputChannel
   markInput(sessionId: string, channel: InputChannel): void
-  /** The user's current IANA zone: the latest browser zone of an assistant conversation, else the host's. */
+  /** The user's IANA zone: what the profile records, else this computer's as a stand-in. */
   zoneFor(session: SessionLike | undefined): string
+  /** Whether a chat app is connected and switched on for this assistant. */
+  chatConnected(person: Person): boolean
+  /** Send to the user's chat app now, or at the end of quiet hours unless this turn may reach them inside them. */
+  sendToChat(person: Person, sessionId: string, text: string): ChatOutcome
+  /** Whether the session's running turn holds a message from the user, on any channel. */
+  turnFromUser(sessionId: string): boolean
+  /** The wake-ups an assistant has waiting, soonest first. */
+  wakes(person: Person): readonly WakeRequest[]
+  addWake(person: Person, wake: Omit<WakeRequest, 'id'>): WakeRequest | undefined
+  cancelWakes(person: Person, match: string): WakeRequest[]
+  /** Change an assistant's own settings; a field set to undefined goes back to its default. */
+  updateSettings(personId: string, patch: { readonly [K in keyof AssistantSettings]?: AssistantSettings[K] | undefined }): Promise<void>
 }
 
 /**

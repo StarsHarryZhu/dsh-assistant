@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -29,6 +29,7 @@ function setup(initial: Record<string, unknown> = {}, host: { registry?: OldRegi
   const created: { cwd?: string; agentPreset?: string }[] = []
   const prompts: { sessionId: string; text: string }[] = []
   const robotCalls: string[] = []
+  const scheduleCalls: string[] = []
   const childModels: unknown[] = []
   let loginStates: ImLoginState[] = []
   const titles = new Map<string, { title: string; source: { kind: string } }>()
@@ -78,6 +79,11 @@ function setup(initial: Record<string, unknown> = {}, host: { registry?: OldRegi
       unbind: async (bindingId: string) => { robotCalls.push(`unbind:${bindingId}`) },
       status: () => ({ bound: false }),
       setBindingOptions: (bindingId: string, options: unknown) => { robotCalls.push(`binding-options:${bindingId}:${JSON.stringify(options)}`) },
+      send: (bindingId: string, text: string) => { robotCalls.push(`send:${bindingId}:${text}`) },
+    },
+    schedule: {
+      list: async ({ sessionId }: { sessionId: string }) => (sessionId === 's-mom' ? [{ id: 'old-1' }, { id: 'old-2' }] : []),
+      delete: async ({ sessionId, id }: { sessionId: string; id: string }) => { scheduleCalls.push(`${sessionId}:${id}`) },
     },
   }
   ctx = new FakeContext(services)
@@ -86,7 +92,7 @@ function setup(initial: Record<string, unknown> = {}, host: { registry?: OldRegi
   const service = ctx.get('dshAssisstant') as AssistantService
   const settle = () => new Promise(resolve => setTimeout(resolve, 10))
   const update = (patch: Record<string, unknown>) => services.settings.mutate('dsh-assisstant', Object.entries(patch).map(([key, value]) => ({ path: [key], value })))
-  return { ctx, store, registry, agents, created, prompts, robotCalls, childModels, titles, renames, service, settle, update, root, setLogin: (states: ImLoginState[]) => { loginStates = states } }
+  return { ctx, store, registry, agents, created, prompts, robotCalls, scheduleCalls, childModels, titles, renames, service, settle, update, root, setLogin: (states: ImLoginState[]) => { loginStates = states } }
 }
 
 describe('the settings row', () => {
@@ -104,6 +110,14 @@ describe('the settings row', () => {
     // A session that never ran a turn is a blank page in the host's view, so the assistant speaks first.
     expect(prompts.map(prompt => prompt.sessionId)).toEqual(['session-1'])
     expect(prompts[0]?.text).toContain('first meeting')
+    expect(prompts[0]?.text).toContain('ask in the same message')
+  })
+
+  it('hands the new assistant what the user wrote about where they are', async () => {
+    const { prompts, settle } = setup({ people: [{ id: 'mom', name: '妈妈', cwd: '/w/mom', zoneHint: '上海' }] })
+    await settle()
+    expect(prompts[0]?.text).toContain('"上海"')
+    expect(prompts[0]?.text).toContain('field Time zone')
   })
 
   it('creates no conversation for an entry without a folder', async () => {
@@ -254,12 +268,76 @@ describe('the settings row', () => {
       ],
       wechatState: { mom: { status: 'bound', updatedAt: 1 }, dad: { status: 'bound', updatedAt: 1 } },
     })
-    expect(robotCalls).toContain('binding-options:mom:{"enabled":true,"replyMaxChars":800}')
-    expect(robotCalls).toContain('binding-options:dad:{"enabled":false,"replyMaxChars":100}')
+    expect(robotCalls).toContain('binding-options:mom:{"enabled":true,"replyMaxChars":800,"mediaDir":"/w/temp"}')
+    expect(robotCalls).toContain('binding-options:dad:{"enabled":false,"replyMaxChars":100,"mediaDir":"/d/temp"}')
     expect(robotCalls.some(call => call.startsWith('binding-options:kid'))).toBe(false)
     robotCalls.length = 0
     await update({ wechatState: { mom: { status: 'bound', updatedAt: 1 }, dad: { status: 'bound', updatedAt: 1 }, kid: { status: 'bound', updatedAt: 2 } } })
-    expect(robotCalls).toContain('binding-options:kid:{"enabled":true,"replyMaxChars":100}')
+    expect(robotCalls).toContain('binding-options:kid:{"enabled":true,"replyMaxChars":100,"mediaDir":"/k/temp"}')
+  })
+
+  it('has the assistant introduce itself on WeChat after each binding, even in quiet hours', async () => {
+    const { update, settle, prompts, robotCalls, setLogin, service, ctx } = setup({
+      people: [{ id: 'mom', name: '妈妈', cwd: '/w', sessionId: 's-mom', settings: { quietStart: '00:00', quietEnd: '23:59' } }],
+    })
+    setLogin([{ status: 'bound', user: 'wx***' }])
+    await update({ wechatRequest: { personId: 'mom', action: 'bind', nonce: 'n1' } })
+    await settle()
+    expect(prompts.at(-1)?.sessionId).toBe('s-mom')
+    expect(prompts.at(-1)?.text).toContain('just connected their WeChat')
+    expect(robotCalls.some(call => call.startsWith('binding-options:mom:') && call.includes('"mediaDir":"/w/temp"'))).toBe(true)
+    const person = service.people()[0]!
+    expect(service.sendToChat(person, 's-mom', '你好')).toEqual({ status: 'sent' })
+    expect(robotCalls).toContain('send:mom:你好')
+    // One turn only: afterwards quiet hours hold again.
+    ctx.emit('session/event', fakeSession('s-mom'), { type: 'turn/end' })
+    await update({ wechatRequest: { personId: 'mom', action: 'unbind', nonce: 'n2' } })
+    await settle()
+    const count = prompts.length
+    await update({ wechatRequest: { personId: 'mom', action: 'bind', nonce: 'n3' } })
+    await settle()
+    expect(prompts.length).toBe(count + 1)
+  })
+
+  it('sends to the chat app, holds it in quiet hours unless the user is talking now, and says when nothing is connected', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsa-chat-'))
+    writeFileSync(join(root, 'profile.md'), '# Profile\n\n- Time zone: UTC\n')
+    const registry = new Registry()
+    const hour = new Date().getUTCHours()
+    const pad = (value: number) => String(value % 24).padStart(2, '0')
+    const inQuiet = { quietStart: `${pad(hour)}:00`, quietEnd: `${pad(hour + 2)}:00` }
+    const { service, robotCalls, ctx, store, settle } = setup({
+      people: [{ id: 'mom', name: '妈妈', cwd: root, sessionId: 's-mom', settings: inQuiet }],
+      wechatState: { mom: { status: 'bound', updatedAt: 1 } },
+    }, { registry })
+    await settle()
+    registry.presets.set('s-mom', 'dsh-assisstant')
+    const person = service.people()[0]!
+    expect(service.zoneFor(fakeSession('s-mom'))).toBe('UTC')
+    expect(service.sendToChat(person, 's-mom', '晚点说')).toMatchObject({ status: 'held' })
+    expect(robotCalls.filter(call => call.startsWith('send:'))).toEqual([])
+    expect(service.turnFromUser('s-mom')).toBe(false)
+    ctx.emit('session/event', fakeSession('s-mom'), { type: 'turn/start' })
+    ctx.emit('session/event', fakeSession('s-mom'), { type: 'user/message', data: { source: { kind: 'user' } } })
+    expect(service.turnFromUser('s-mom')).toBe(true)
+    expect(service.sendToChat(person, 's-mom', '现在说')).toEqual({ status: 'sent' })
+    ctx.emit('session/event', fakeSession('s-mom'), { type: 'turn/end' })
+    expect(service.turnFromUser('s-mom')).toBe(false)
+    store.wechatState = {}
+    expect(service.chatConnected(person)).toBe(false)
+    expect(service.sendToChat(person, 's-mom', 'x')).toEqual({ status: 'unavailable' })
+  })
+
+  it('removes what earlier versions left among the host\'s automation tasks', async () => {
+    const { scheduleCalls, settle } = setup({ people: [{ id: 'mom', name: '妈妈', cwd: '/w', sessionId: 's-mom' }] })
+    await settle()
+    expect(scheduleCalls).toEqual(['s-mom:old-1', 's-mom:old-2'])
+  })
+
+  it('stores what the assistant changes in its settings, dropping defaults and what is unset', async () => {
+    const { service, store } = setup({ people: [{ id: 'mom', name: '妈妈', cwd: '/w', sessionId: 's-mom', settings: { tempQuietUntil: 5, reminderLeadMinutes: 10 } }] })
+    await service.updateSettings('mom', { quietStart: '23:00', quietEnd: '08:00', tempQuietUntil: undefined })
+    expect((store.people as { settings: unknown }[])[0]?.settings).toEqual({ reminderLeadMinutes: 10, quietStart: '23:00' })
   })
 
   it('tells complete-subagent which models workers may run, and again when they change', async () => {

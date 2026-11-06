@@ -242,8 +242,8 @@ async function selfCheck(source) {
   if (!keyed('sidebar.panellist').includes('dsh-assisstant')) fail('apply(ctx) did not register the sidebar row')
   if (!dictionaries.includes(PACKAGE_NAME)) fail('apply(ctx) did not register the dictionaries')
   if (appended.length !== 1 || appended[0].attributes['data-plugin'] !== PACKAGE_NAME) fail('apply(ctx) did not mount exactly one tagged stylesheet')
-  if (keyed('tool.call.toolview').length !== 9) fail('apply(ctx) did not register a conversation row for each of the nine record tools')
-  if (registered.length !== 12) fail(`apply(ctx) registered ${registered.length} slot entries; expected exactly 12`)
+  if (keyed('tool.call.toolview').length !== 15) fail('apply(ctx) did not register a conversation row for each of the fifteen tools it titles')
+  if (registered.length !== 18) fail(`apply(ctx) registered ${registered.length} slot entries; expected exactly 18`)
   for (const dispose of disposers.reverse()) dispose()
   if (registered.length !== 0 || dictionaries.length !== 0 || appended[0].parent !== false) {
     fail('disposing the plugin left a registration or the stylesheet behind')
