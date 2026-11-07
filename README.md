@@ -69,6 +69,7 @@ Next: single-window self-management for the parent agent — its own context, mo
 ## Known limits
 
 - The sidebar's content search can still find assistant conversations.
+- WeChat lets the assistant write first only for about a day after your last WeChat message (more precisely, third-party reports say so; Tencent documents no rule). Shortly before that — and before quiet hours if it would close in them or soon after — the assistant asks you on WeChat to reply once. If the day has passed anyway, what could not be sent waits and goes out as soon as you write on WeChat again (up to a day old), and the IM tab says so.
 - Heartbeats stop while the app is closed or the computer sleeps; what is still ahead is given on waking.
 - The app keeps its own copy of every image and file shown in a conversation, even after `IM/WeChat/` has removed the original.
 - Only tools are isolated; global prompt contexts injected by other plugins are not filtered.

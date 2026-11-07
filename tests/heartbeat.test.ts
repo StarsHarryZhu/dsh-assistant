@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { Heartbeat, clearAutomationTasks, heartbeatText } from '../src/host/heartbeat.ts'
+import { Heartbeat, WINDOW_NUDGE, clearAutomationTasks, heartbeatText } from '../src/host/heartbeat.ts'
 import type { AssistantSettings, Person } from '../src/shared/settings.ts'
 
 const ZONE = 'Asia/Shanghai'
@@ -23,6 +23,11 @@ function setup(settings: Partial<AssistantSettings> = {}, options: { now?: strin
     pruned: [] as string[],
     warnings: [] as string[],
     failPrune: false,
+    /** When WeChat stops taking the assistant's messages; undefined while unknown. */
+    windowClosesAt: undefined as number | undefined,
+    /** What went straight to WeChat: "HH:MM|text" by the Shanghai clock. */
+    chats: [] as string[],
+    failChat: false,
   }
   const directory = options.directory ?? mkdtempSync(join(tmpdir(), 'dsa-heartbeat-'))
   const make = () => new Heartbeat({
@@ -36,6 +41,11 @@ function setup(settings: Partial<AssistantSettings> = {}, options: { now?: strin
     prune: (person) => {
       if (world.failPrune) throw new Error('disk gone')
       world.pruned.push(`${person.id}@${new Date(world.now).toISOString().slice(0, 16)}`)
+    },
+    chatWindow: () => world.windowClosesAt,
+    sendChat: (_person, text) => {
+      if (world.failChat) throw new Error('not bound')
+      world.chats.push(`${new Date(world.now + 8 * 3_600_000).toISOString().slice(5, 16)}|${text}`)
     },
     warn: (message) => { world.warnings.push(message) },
     directory,
@@ -357,6 +367,77 @@ describe('clearing the chat inbox', () => {
     world.warnings.length = 0
     until('2026-11-07T00:30')
     expect(world.warnings).toEqual([])
+  })
+})
+
+describe('keeping WeChat open', () => {
+  const quietDefaults = { heartbeatMinutes: 0, dailyBriefTime: '' }
+
+  it('asks the user once, straight on WeChat, two hours before it stops taking messages', () => {
+    const { world, until, make } = setup(quietDefaults)
+    world.windowClosesAt = at('2026-11-05T18:00')
+    until('2026-11-05T15:59')
+    expect(world.chats).toEqual([])
+    until('2026-11-05T16:00')
+    expect(world.chats).toEqual([`11-05T16:00|${WINDOW_NUDGE}`])
+    until('2026-11-05T17:59')
+    // Nor again after a restart, and the model is not woken for it.
+    const again = make()
+    world.now += MINUTE
+    again.tick()
+    expect(world.chats).toHaveLength(1)
+    expect(world.notes).toEqual([])
+  })
+
+  it('asks half an hour before quiet hours that hold that moment', () => {
+    const { world, until } = setup(quietDefaults)
+    world.windowClosesAt = at('2026-11-06T01:00')
+    until('2026-11-05T21:29')
+    expect(world.chats).toEqual([])
+    until('2026-11-05T21:30')
+    expect(world.chats.map(chat => chat.split('|')[0])).toEqual(['11-05T21:30'])
+  })
+
+  it('asks before quiet hours whenever the window would close in them or within two hours after', () => {
+    // Quiet hours are 22:00–08:00. Each close maps to the moment the ask comes.
+    const cases: [string, string][] = [
+      ['2026-11-05T22:30', '11-05T20:30'],
+      ['2026-11-05T23:00', '11-05T21:00'],
+      ['2026-11-06T03:00', '11-05T21:30'],
+      ['2026-11-06T09:59', '11-05T21:30'],
+      ['2026-11-06T10:30', '11-06T08:30'],
+    ]
+    for (const [closes, asked] of cases) {
+      const { world, until } = setup(quietDefaults)
+      world.windowClosesAt = at(closes)
+      until(closes)
+      expect(world.chats.map(chat => chat.split('|')[0]), closes).toEqual([asked])
+    }
+  })
+
+  it('never asks once it has closed or inside quiet hours, and asks again for each new window', () => {
+    const { world, until } = setup(quietDefaults)
+    world.windowClosesAt = at('2026-11-05T11:00')
+    until('2026-11-05T13:00')
+    expect(world.chats).toEqual([])
+    // Closing at 01:30, the ask belongs at 21:30 (23:30 is in quiet hours); from 23:00 on it is all quiet, so none comes.
+    world.windowClosesAt = at('2026-11-06T01:30')
+    world.now = at('2026-11-05T23:00')
+    until('2026-11-06T01:30')
+    expect(world.chats).toEqual([])
+    // They wrote again: a new window, and a new ask.
+    world.windowClosesAt = at('2026-11-07T10:00')
+    until('2026-11-07T08:00')
+    expect(world.chats.map(chat => chat.split('|')[0])).toEqual(['11-07T08:00'])
+  })
+
+  it('logs a send it could not make, without trying again', () => {
+    const { world, until } = setup(quietDefaults)
+    world.failChat = true
+    world.windowClosesAt = at('2026-11-05T15:00')
+    until('2026-11-05T14:00')
+    expect(world.chats).toEqual([])
+    expect(world.warnings.filter(line => line.includes('write on WeChat'))).toHaveLength(1)
   })
 })
 

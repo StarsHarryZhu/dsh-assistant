@@ -19,7 +19,7 @@ The vitest specs. Host modules and entry plugins run against fake host services 
 - `calendar.test.ts` — the calendar and the clock line.
 - `ddl.test.ts` — the `ddl.md` fast path.
 - `watchdog.test.ts` — the watchdog.
-- `heartbeat.test.ts` — the daily brief, reminders, wake-ups, heartbeats, quiet hours, the daily inbox clean-up, restarts, with a clock moved by hand.
+- `heartbeat.test.ts` — the daily brief, reminders, wake-ups, heartbeats, quiet hours, the daily inbox clean-up, the ask to keep WeChat open, restarts, with a clock moved by hand.
 - `quiet.test.ts` — daily and temporary quiet hours, and where a reminder goes.
 - `assistant-tools.test.ts` — `im_route`, `wake_after`, `wake_cancel`, `quiet_set`, `brief_set`, `media_copy`, the inbox clean-up, and the tool titles.
 - `hidden-sessions.test.ts` — assistant conversations left out of the session lists.

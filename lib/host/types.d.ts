@@ -227,6 +227,8 @@ export interface ImBindingStatus {
     readonly lastError?: string;
     readonly sendMode?: 'queue' | 'steer';
     readonly commands?: boolean;
+    /** When WeChat stops taking messages the account has not answered: a day after its latest one. Since im-robot 0.2.2. */
+    readonly windowClosesAt?: number;
 }
 /** One im-robot connection diagnosis. */
 export interface ImDiagnosis {

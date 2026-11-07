@@ -13,6 +13,11 @@
  * Inside quiet hours nothing fires but a wake-up the user asked to come through
  * them; a reply routed to the chat app in them waits in im-robot's outbox
  * until they end. Once a day it also has old files of the chat inbox removed.
+ *
+ * WeChat stops taking the assistant's messages about a day after the user's
+ * last message there, so shortly before that (or before quiet hours holding
+ * that moment) the host itself, without the model, asks them on WeChat to write
+ * once more; once per window, and never after it closed.
  * Each assistant's state is a file in the plugin's data folder, so a restart
  * repeats nothing and misses nothing that is still ahead.
  * @module dsh-assisstant/host/heartbeat
@@ -26,7 +31,7 @@ import type { AssistantSettings, Person } from '../shared/settings.ts'
 import { weekdayOf } from './calendar.ts'
 import { local, parseDdl, repeatsOn, todayItems, zonedToUtc } from './ddl.ts'
 import type { DdlEntry } from './ddl.ts'
-import { quietSpanAt, remindAt } from './quiet.ts'
+import { nudgeAt, quietSpanAt, remindAt } from './quiet.ts'
 import { CALENDAR_FILE, hasClockTime, isMuted } from './records/calendar.ts'
 import type { ReminderRecordLike, ScheduleLike } from './types.ts'
 import { SYSTEM_PREFIX } from './watchdog.ts'
@@ -70,6 +75,8 @@ interface HeartbeatState {
   briefDate?: string
   /** The local date the chat inbox was last cleared of old files. */
   prunedDate?: string
+  /** The close of the chat reply window the user was last asked to keep open. */
+  nudgedFor?: number
   /** Reminders already given: item key → when the event starts. */
   reminded: Record<string, number>
   wakes: WakeRequest[]
@@ -91,6 +98,10 @@ export interface HeartbeatDeps {
   sendNote(sessionId: string, text: string): void
   /** Remove the assistant's old chat inbox files; called once a day. */
   prune?(person: Person): void
+  /** When the chat app stops taking the assistant's messages, while one is connected and that is known. */
+  chatWindow?(person: Person): number | undefined
+  /** Send text straight to the chat app, without the model; throws when it cannot. */
+  sendChat?(person: Person, text: string): void
   warn(message: string): void
   /** The folder of the state files. */
   directory: string
@@ -111,6 +122,9 @@ export const MAX_WAKES = 50
 
 /** How many days ahead repeating items are looked at, beyond the lead time. */
 const REPEAT_HORIZON_DAYS = 2
+
+/** What the user reads on WeChat shortly before it stops taking the assistant's messages: in their language. */
+export const WINDOW_NUDGE = '快一天没在微信里聊了。微信规定超过一天没说话，我就没法先给你发消息。回我一句就好，之后的提醒和日程才能照常发过来。'
 
 /** @returns the instant as "11/05 周四 14:30". */
 function whenText(ms: number, zone: string): string {
@@ -183,6 +197,7 @@ function readState(value: unknown): HeartbeatState {
     ...(lastBeatAt === undefined ? {} : { lastBeatAt }),
     ...(typeof record.briefDate === 'string' ? { briefDate: record.briefDate } : {}),
     ...(typeof record.prunedDate === 'string' ? { prunedDate: record.prunedDate } : {}),
+    ...(number(record.nudgedFor) === undefined ? {} : { nudgedFor: number(record.nudgedFor) }),
     reminded,
     wakes,
   }
@@ -326,6 +341,7 @@ export class Heartbeat {
     }
 
     const quiet = quietSpanAt(settings, now, zone) !== undefined
+    if (!quiet) this.nudgeIfClosing(person, settings, state, now, zone)
     if (this.deps.running(sessionId)) return false
 
     const wakes = state.wakes.filter(wake => wake.at <= now && (!quiet || wake.throughQuiet))
@@ -367,6 +383,31 @@ export class Heartbeat {
       inQuiet: quiet,
     }))
     return true
+  }
+
+  /**
+   * Ask the user on the chat app to write once more when it is about to stop
+   * taking the assistant's messages: once per window, from its moment until it
+   * closes, and only outside quiet hours (the caller checks those).
+   */
+  private nudgeIfClosing(person: Person, settings: AssistantSettings, state: HeartbeatState, now: number, zone: string): void {
+    if (this.deps.chatWindow === undefined || this.deps.sendChat === undefined) return
+    let closesAt: number | undefined
+    try {
+      closesAt = this.deps.chatWindow(person)
+    } catch (error) {
+      this.deps.warn(`could not read ${person.name}'s WeChat window: ${String(error)}`)
+      return
+    }
+    if (closesAt === undefined || closesAt <= now || state.nudgedFor === closesAt) return
+    if (now < nudgeAt(settings, closesAt, zone)) return
+    state.nudgedFor = closesAt
+    this.save(person.id)
+    try {
+      this.deps.sendChat(person, WINDOW_NUDGE)
+    } catch (error) {
+      this.deps.warn(`could not ask ${person.name}'s user to write on WeChat: ${String(error)}`)
+    }
   }
 
   /** Store the state, forgetting reminders of events long past. */

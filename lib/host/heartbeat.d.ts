@@ -13,6 +13,11 @@
  * Inside quiet hours nothing fires but a wake-up the user asked to come through
  * them; a reply routed to the chat app in them waits in im-robot's outbox
  * until they end. Once a day it also has old files of the chat inbox removed.
+ *
+ * WeChat stops taking the assistant's messages about a day after the user's
+ * last message there, so shortly before that (or before quiet hours holding
+ * that moment) the host itself, without the model, asks them on WeChat to write
+ * once more; once per window, and never after it closed.
  * Each assistant's state is a file in the plugin's data folder, so a restart
  * repeats nothing and misses nothing that is still ahead.
  * @module dsh-assisstant/host/heartbeat
@@ -51,12 +56,18 @@ export interface HeartbeatDeps {
     sendNote(sessionId: string, text: string): void;
     /** Remove the assistant's old chat inbox files; called once a day. */
     prune?(person: Person): void;
+    /** When the chat app stops taking the assistant's messages, while one is connected and that is known. */
+    chatWindow?(person: Person): number | undefined;
+    /** Send text straight to the chat app, without the model; throws when it cannot. */
+    sendChat?(person: Person, text: string): void;
     warn(message: string): void;
     /** The folder of the state files. */
     directory: string;
 }
 /** Most wake-ups one assistant may have waiting. */
 export declare const MAX_WAKES = 50;
+/** What the user reads on WeChat shortly before it stops taking the assistant's messages: in their language. */
+export declare const WINDOW_NUDGE = "\u5FEB\u4E00\u5929\u6CA1\u5728\u5FAE\u4FE1\u91CC\u804A\u4E86\u3002\u5FAE\u4FE1\u89C4\u5B9A\u8D85\u8FC7\u4E00\u5929\u6CA1\u8BF4\u8BDD\uFF0C\u6211\u5C31\u6CA1\u6CD5\u5148\u7ED9\u4F60\u53D1\u6D88\u606F\u3002\u56DE\u6211\u4E00\u53E5\u5C31\u597D\uFF0C\u4E4B\u540E\u7684\u63D0\u9192\u548C\u65E5\u7A0B\u624D\u80FD\u7167\u5E38\u53D1\u8FC7\u6765\u3002";
 /** What one note says. */
 export interface NoteParts {
     readonly now: number;
@@ -107,6 +118,12 @@ export declare class Heartbeat {
      */
     tick(): string[];
     private tickOne;
+    /**
+     * Ask the user on the chat app to write once more when it is about to stop
+     * taking the assistant's messages: once per window, from its moment until it
+     * closes, and only outside quiet hours (the caller checks those).
+     */
+    private nudgeIfClosing;
     /** Store the state, forgetting reminders of events long past. */
     private saveQuietly;
     /** @returns when the next heartbeat will fire: after quiet hours when it falls inside them. */

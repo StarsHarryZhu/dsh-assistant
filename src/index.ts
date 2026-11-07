@@ -417,6 +417,17 @@ export function apply(ctx: Context, config: Config): void {
       const removed = pruneOldFiles(wechatFolder(person.cwd), assistantSettings(person).wechatMediaDays, Date.now())
       if (removed > 0) ctx.logger.info(`removed ${removed} WeChat file(s) of ${person.name} older than ${assistantSettings(person).wechatMediaDays} days`)
     },
+    chatWindow: (person) => {
+      if (!chatConnected(person)) return undefined
+      const status = host.get('imRobot')?.status(person.id)
+      // An im-robot that answers asynchronously is older than the window it would report.
+      return status instanceof Promise ? undefined : status?.windowClosesAt
+    },
+    sendChat: (person, text) => {
+      const robot = host.get('imRobot')
+      if (robot?.send === undefined) throw new Error('im-robot cannot send')
+      robot.send(person.id, text)
+    },
     warn,
     directory: join(dataDirectory(), 'heartbeat'),
   })

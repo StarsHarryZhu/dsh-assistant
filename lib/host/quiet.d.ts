@@ -5,7 +5,8 @@
  *
  * A reminder that falls in quiet hours moves to the end of them when the event
  * is still ahead by then (the next morning), and otherwise to one minute before
- * they start (the evening before).
+ * they start (the evening before). The ask to write once more before the chat
+ * app's reply window closes moves to half an hour before them.
  * @module dsh-assisstant/host/quiet
  */
 /** What this module reads from an assistant's settings. */
@@ -42,6 +43,19 @@ export declare function quietSpanAt(settings: QuietSettings, at: number, zone: s
  * @returns whether that time of day falls in the daily quiet hours.
  */
 export declare function inDailyQuiet(settings: QuietSettings, time: string): boolean;
+/** How long before the chat app's reply window closes the user is asked to write once more. */
+export declare const NUDGE_LEAD_MS: number;
+/** How long before quiet hours that hold that moment the ask comes instead. */
+export declare const NUDGE_BEFORE_QUIET_MS: number;
+/**
+ * When to ask the user to write once more before the chat app stops taking
+ * the assistant's messages.
+ * @param settings - the assistant's quiet hours.
+ * @param closesAt - when the chat app's reply window closes.
+ * @param zone - the user's IANA zone.
+ * @returns {@link NUDGE_LEAD_MS} before it closes, or {@link NUDGE_BEFORE_QUIET_MS} before quiet hours holding that moment.
+ */
+export declare function nudgeAt(settings: QuietSettings, closesAt: number, zone: string): number;
 /**
  * When a reminder should come.
  * @param settings - the assistant's quiet hours.
