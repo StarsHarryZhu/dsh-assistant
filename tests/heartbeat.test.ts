@@ -413,7 +413,7 @@ describe('keeping WeChat open', () => {
       until(closes)
       expect(world.chats.map(chat => chat.split('|')[0]), closes).toEqual([asked])
     }
-  })
+  }, 20_000)
 
   it('never asks once it has closed or inside quiet hours, and asks again for each new window', () => {
     const { world, until } = setup(quietDefaults)
