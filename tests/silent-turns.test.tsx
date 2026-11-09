@@ -39,6 +39,21 @@ describe('silent turns', () => {
     expect(marked(root)).toEqual(['5:turn-trigger', '5:turn-process', '5:assistant-step', '5:turn-tail', '6:turn-trigger', '6:assistant-step', '6:assistant-step', '6:turn-tail'])
   })
 
+  it('include a host note\'s turn whose model request was retried before it went on', () => {
+    const root = rows([
+      ['turn-trigger', '88'], ['turn-process', '88'], ['model-retry', '88'], ['assistant-step', '88'], ['assistant-step', '88', '\n\n[silent]'], ['turn-tail', '88'],
+      ['turn-trigger', '89'], ['turn-process', '89'], ['model-retry', '89'], ['turn-error', '89'], ['turn-tail', '89'],
+    ])
+    markSilentTurns(root)
+    expect(marked(root)).toEqual(['88:turn-trigger', '88:turn-process', '88:model-retry', '88:assistant-step', '88:assistant-step', '88:turn-tail'])
+  })
+
+  it('include the oldest turn on screen, whose trigger row is above the loaded page', () => {
+    const root = rows([['turn-process', '81'], ['assistant-step', '81'], ['assistant-step', '81', '[silent]'], ['turn-tail', '81'], ['user', '82'], ['turn-process', '82'], ['assistant-step', '82', '好的'], ['turn-tail', '82']])
+    markSilentTurns(root)
+    expect(marked(root)).toEqual(['81:turn-process', '81:assistant-step', '81:assistant-step', '81:turn-tail'])
+  })
+
   it('keep a heartbeat\'s reminder in view', () => {
     const root = rows([['turn-trigger', '7'], ['turn-process', '7'], ['assistant-step', '7'], ['assistant-step', '7', '到点了，该喝水啦。'], ['turn-tail', '7']])
     markSilentTurns(root)
@@ -67,6 +82,17 @@ describe('silent turns', () => {
     root.appendChild(answer)
     markSilentTurns(root)
     expect(marked(root)).toEqual([])
+  })
+
+  it('follow a streamed reply whose last piece only changes its text', async () => {
+    const root = rows([['turn-trigger', '9'], ['turn-process', '9'], ['assistant-step', '9', '[sil'], ['turn-tail', '9']])
+    const stop = watchSilentTurns(root)
+    expect(marked(root)).toEqual([])
+    const text = root.querySelector('[data-text-interaction-source]')!.firstChild as Text
+    text.data = '[silent]'
+    await new Promise(resolve => setTimeout(resolve, 150))
+    expect(marked(root)).toHaveLength(4)
+    stop()
   })
 
   it('are followed as the conversation changes, until the watch ends', async () => {

@@ -17,7 +17,8 @@
 #    through its service (`ownModel: false`), never the conversation's own.
 #    im-robot answers WeChat on its own only for turns a WeChat message started
 #    (`autoPush: false`): everything else reaches WeChat through the router's
-#    `im_send`, so nothing goes twice.
+#    `im_route`, so nothing goes twice; a reply that is only the silent marker
+#    never goes at all (`silentReply`).
 # 3. The router preset: the user's own conversation. A strict router
 #    (as dsh-superagent-prototype's main Session): it reads, talks, records
 #    simple information with the policy's record tools over fixed files, and
@@ -48,6 +49,7 @@
           config:
             presets: [dsh-assisstant]
             autoPush: false
+            silentReply: '[silent]'
           disabled: !!js "[...loader.entries()].some(e => e.options.id === 'im-robot' && !e.options.disabled)"
     - id: preset-dsh-assisstant
       name: '@deepseek-ai/dsh-agent-preset'

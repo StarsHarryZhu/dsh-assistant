@@ -122,6 +122,14 @@ describe('the router prompt', () => {
     expect(router).toContain('Never mention heartbeats')
   })
 
+  it('answers every message from the user, a WeChat emoji included, and keeps the silent marker for system notes', () => {
+    expect(router).toContain('**Every message from the user gets an answer**')
+    expect(router).toContain('`[silent]` is only for a system note with nothing due, never for something they said or sent')
+    expect(router).toContain('A turn a message from the user started is never one.')
+    expect(router).toContain('**WeChat writes its built-in emoji as their names in brackets**')
+    expect(router).toContain('`[Onlooker]`')
+  })
+
   it('keeps the time zone from what the user says and their schedule, not this computer', () => {
     expect(router).toContain('The profile\'s `Time zone` is theirs, not this computer\'s')
     expect(router).toContain('**Keep it true from their schedule.**')

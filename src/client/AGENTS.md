@@ -31,7 +31,7 @@ The browser half, bundled by `build.js` into one module-loader factory. It regis
 - `im.tsx` — the IM tab: QR binding, then the account, the conversation's model and effort, the assistant's permission, send mode, commands, the fixed settings disabled, diagnosis, reconnect, removal.
 - `record-row.tsx` — the plain title a record tool's call shows in the conversation.
 - `hidden-sessions.ts` — leaves assistant conversations out of the host's session lists.
-- `silent-turns.ts` — marks the host-note turns that said nothing (only thinking, or the silent reply) and did nothing, for the stylesheet to hide.
+- `silent-turns.ts` — marks the host-note turns that said nothing (only thinking, or the silent reply) and did nothing, retried model requests included, for the stylesheet to hide.
 - `assistants.ts` — assistant list and WeChat request helpers over the settings form, and the assistant last shown in this browser.
 - `settings.tsx` — both settings pages: the shared one with the workers' models, and each assistant's own, which also renames and deletes it.
 - `qr.tsx` — draws a QR code as SVG.
@@ -51,4 +51,5 @@ The browser half, bundled by `build.js` into one module-loader factory. It regis
 - Done (2026-11-05, user request): assistant conversations no longer appear under Ungrouped or a workspace; the settings tab has the heartbeat and quiet hours; the create form asks where the user is.
 - Done (2026-11-06, user request): the settings tab sets how many days the WeChat inbox keeps files.
 - Fixed (2026-11-06, found on Desktop 0.2.2-rc.1): every heartbeat turn was hidden, reminders included, because 0.2.2 marks no reply as the turn's answer; a turn now stays in view when a step's Markdown body says anything but the silent reply.
+- Fixed (2026-11-09, found on Desktop 0.2.2-rc.1): a heartbeat whose model request the host retried (five 502s, seven minutes) stayed in view with its `[silent]`, because its `model-retry` row counted as saying something; that row is now quiet. The oldest turn on screen, whose trigger row is above the loaded page, is judged by the absence of a person's message instead of by its trigger. The watch also follows text-only changes, so a streamed reply's last piece re-marks its turn.
 - Known limits: other plugins' changes to the conversation view also apply to assistant conversations; the sidebar's content search can still find assistant conversations.

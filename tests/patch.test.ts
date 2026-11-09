@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { PACKAGE_NAME, PLUGIN_ID } from '../src/shared/settings.ts'
+import { SILENT_REPLY } from '../src/shared/silent.ts'
 
 const ROOT = join(import.meta.dirname, '..')
 const patch = readFileSync(join(ROOT, 'cordis.patch.yml'), 'utf8')
@@ -40,6 +41,7 @@ describe('the bundle patch', () => {
     expect(group).toContain('ownModel: false')
     expect(group).toContain('presets: [dsh-assisstant]')
     expect(group).toContain('autoPush: false')
+    expect(group).toContain(`silentReply: '${SILENT_REPLY}'`)
   })
 
   it('gives the router no writes, no shell, no web, no skills, and no official subagent tool', () => {
@@ -70,7 +72,7 @@ describe('the bundle patch', () => {
 describe('the manifest', () => {
   it('pins the identity, the engine range, and the entries', () => {
     expect(manifest.name).toBe('@starsharryzhu/dsh-assistant')
-    expect(manifest.version).toBe('0.2.2')
+    expect(manifest.version).toBe('0.2.3')
     expect(manifest.license).toBe('MIT')
     expect(manifest.engines.dsh).toBe('>=0.2.1-rc.5 <0.3.0-0')
     const hostRanges = Object.values({ ...manifest.devDependencies, ...manifest.peerDependencies } as Record<string, string>).filter(range => range.includes('0.2.'))
