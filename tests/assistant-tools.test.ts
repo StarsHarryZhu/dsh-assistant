@@ -1,9 +1,10 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, symlinkSync, truncateSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { assistantTools } from '../src/host/assistant-tools.ts'
 import { copyFromInbox, copyName, pruneOldFiles } from '../src/host/inbox.ts'
+import { MAX_OUTBOUND_FILE_BYTES, outboundFiles } from '../src/host/outbound.ts'
 import { recordToolTitle } from '../src/shared/record-tools.ts'
 import type { WakeRequest } from '../src/host/heartbeat.ts'
 import type { Person } from '../src/shared/settings.ts'
@@ -65,6 +66,85 @@ describe('im_route', () => {
     const { service, call } = setup()
     service.routeChat = () => { throw new Error('boom') }
     expect(await call('im_route', { send: true })).toMatchObject({ ok: false, message: expect.stringContaining('boom') })
+  })
+
+  it('sends checked workspace files after the reply, by their full paths', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsa-outbound-'))
+    mkdirSync(join(root, 'IM', 'WeChat'), { recursive: true })
+    writeFileSync(join(root, 'report.pdf'), 'pdf')
+    writeFileSync(join(root, 'IM', 'WeChat', 'photo.jpg'), 'jpg')
+    const { service, call } = setup({ id: 'mom', name: '阿福', cwd: root })
+    const routed: unknown[] = []
+    service.routeChat = (_person, _session, send, files) => {
+      routed.push({ send, files })
+      return { status: 'routed' }
+    }
+    const result = await call('im_route', { send: true, files: ['report.pdf', join(root, 'IM/WeChat/photo.jpg'), './report.pdf'] })
+    expect(result).toMatchObject({ ok: true, message: expect.stringContaining('report.pdf, IM/WeChat/photo.jpg go after it') })
+    expect(result.message).toContain('do not repeat their paths')
+    const real = realpathSync(root)
+    expect(routed).toEqual([{ send: true, files: [join(real, 'report.pdf'), join(real, 'IM', 'WeChat', 'photo.jpg')] }])
+  })
+
+  it('routes nothing when a file cannot go, or with send false', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsa-outbound-'))
+    writeFileSync(join(root, 'ok.pdf'), 'pdf')
+    const { service, call } = setup({ id: 'mom', name: '阿福', cwd: root })
+    let routed = 0
+    service.routeChat = () => {
+      routed += 1
+      return { status: 'routed' }
+    }
+    expect(await call('im_route', { send: false, files: ['ok.pdf'] })).toMatchObject({ ok: false, message: expect.stringContaining('only with send true') })
+    expect(await call('im_route', { send: true, files: ['ok.pdf', 'missing.pdf'] })).toMatchObject({ ok: false, message: expect.stringContaining('no file missing.pdf') })
+    expect(routed).toBe(0)
+    expect((await setup({ id: 'mom', name: '阿福' }).call('im_route', { send: true, files: ['ok.pdf'] })).message).toContain('no workspace')
+  })
+
+  it('names the files when no chat app is connected', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsa-outbound-'))
+    writeFileSync(join(root, 'ok.pdf'), 'pdf')
+    const { service, call } = setup({ id: 'mom', name: '阿福', cwd: root })
+    service.routeChat = () => ({ status: 'unavailable' })
+    expect((await call('im_route', { send: true, files: ['ok.pdf'] })).message).toContain('no file was sent')
+  })
+})
+
+describe('outboundFiles', () => {
+  let root: string
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'dsa-outbound-'))
+    writeFileSync(join(root, 'a.png'), 'png')
+  })
+
+  it('takes files inside the workspace, relative or absolute, once each', () => {
+    const real = realpathSync(root)
+    expect(outboundFiles(root, ['a.png', join(root, 'a.png')])).toEqual({ ok: true, paths: [join(real, 'a.png')] })
+  })
+
+  it('refuses paths and links that leave the workspace', () => {
+    const outside = mkdtempSync(join(tmpdir(), 'dsa-outside-'))
+    writeFileSync(join(outside, 'secret.txt'), 'secret')
+    symlinkSync(join(outside, 'secret.txt'), join(root, 'link.txt'))
+    symlinkSync(outside, join(root, 'linked'))
+    for (const path of ['../x.txt', join(outside, 'secret.txt'), 'link.txt', 'linked/secret.txt']) {
+      expect(outboundFiles(root, [path]), path).toMatchObject({ ok: false })
+    }
+    expect(outboundFiles(root, ['link.txt'])).toMatchObject({ message: expect.stringContaining('outside the workspace') })
+  })
+
+  it('refuses folders, empty and missing files, too many, and anything over 100 MB', () => {
+    mkdirSync(join(root, 'docs'))
+    writeFileSync(join(root, 'empty.txt'), '')
+    expect(outboundFiles(root, ['docs'])).toMatchObject({ ok: false, message: expect.stringContaining('folder') })
+    expect(outboundFiles(root, ['empty.txt'])).toMatchObject({ ok: false, message: expect.stringContaining('empty') })
+    expect(outboundFiles(root, ['gone.png'])).toMatchObject({ ok: false, message: expect.stringContaining('no file') })
+    expect(outboundFiles(root, ['  '])).toMatchObject({ ok: false })
+    expect(outboundFiles(root, Array(10).fill('a.png'))).toMatchObject({ ok: false, message: expect.stringContaining('At most 9') })
+    const big = join(root, 'big.mp4')
+    writeFileSync(big, '')
+    truncateSync(big, MAX_OUTBOUND_FILE_BYTES + 1)
+    expect(outboundFiles(root, ['big.mp4'])).toMatchObject({ ok: false, message: expect.stringContaining('over 100 MB') })
   })
 })
 
@@ -269,6 +349,8 @@ describe('the titles', () => {
   it('read plainly and stay short', () => {
     expect(recordToolTitle('im_route', { send: true })).toBe('回复也发到微信')
     expect(recordToolTitle('im_route', { send: false })).toBe('回复只留在这里')
+    expect(recordToolTitle('im_route', { send: true, files: ['docs/报告.pdf', '/w/照片.jpg'] })).toBe('发到微信：报告.pdf、照片.jpg')
+    expect(recordToolTitle('im_route', { send: true, files: [] })).toBe('回复也发到微信')
     expect(recordToolTitle('media_copy', { file: '/w/IM/WeChat/20261105-213502-报告.pdf' })).toBe('复制微信发来的文件：20261105-213502-报告.pdf')
     expect(recordToolTitle('quiet_set', {})).toBe('改勿扰时间')
     expect(recordToolTitle('brief_set', { time: '07:00' })).toBe('改早上提示时间：07:00')

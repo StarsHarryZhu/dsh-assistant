@@ -80,8 +80,8 @@ function setup(initial: Record<string, unknown> = {}, host: { registry?: OldRegi
       status: () => ({ bound: false }),
       setBindingOptions: (bindingId: string, options: unknown) => { robotCalls.push(`binding-options:${bindingId}:${JSON.stringify(options)}`) },
       send: (bindingId: string, text: string) => { robotCalls.push(`send:${bindingId}:${text}`) },
-      route: (bindingId: string, route: { chat: boolean; notBefore?: number }) => {
-        robotCalls.push(`route:${bindingId}:${route.chat}${route.notBefore === undefined ? '' : ':held'}`)
+      route: (bindingId: string, route: { chat: boolean; notBefore?: number; files?: readonly string[] }) => {
+        robotCalls.push(`route:${bindingId}:${route.chat}${route.notBefore === undefined ? '' : ':held'}${route.files === undefined ? '' : `:${route.files.join('|')}`}`)
         return true
       },
     },
@@ -320,6 +320,9 @@ describe('the settings row', () => {
     expect(service.zoneFor(fakeSession('s-mom'))).toBe('UTC')
     expect(service.routeChat(person, 's-mom', true)).toMatchObject({ status: 'held' })
     expect(robotCalls.filter(call => call.startsWith('route:'))).toEqual(['route:mom:true:held'])
+    // Files are held with the reply.
+    expect(service.routeChat(person, 's-mom', true, ['/w/a.png', '/w/b.pdf'])).toMatchObject({ status: 'held' })
+    expect(robotCalls.at(-1)).toBe('route:mom:true:held:/w/a.png|/w/b.pdf')
     expect(service.routeChat(person, 's-mom', false)).toEqual({ status: 'kept' })
     expect(robotCalls.at(-1)).toBe('route:mom:false')
     expect(service.turnFromUser('s-mom')).toBe(false)

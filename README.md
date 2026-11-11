@@ -41,7 +41,7 @@ Two hidden agent presets, one visible conversation:
 - Quiet hours, daily and temporary. Reminders inside them move to the evening before or the next morning; other WeChat messages wait for their end. The assistant changes them only when you ask.
 - Your own time zone in the profile, worked out from where you say you are and from your schedule, never from the device.
 - A balance reminder for the DeepSeek account, with configurable wording.
-- WeChat through `im-robot`: scan to bind, and the assistant introduces itself; then chat from WeChat in the same conversation. The assistant decides for each reply whether it also goes to WeChat, so what you need to see reaches you there wherever you last wrote. Images, files, voice, and video you send are shown in the conversation and saved in the workspace's `IM/WeChat/` for 30 days (adjustable; 0 keeps them); the assistant copies a file out before working on it. Replies are text split into short messages.
+- WeChat through `im-robot`: scan to bind, and the assistant introduces itself; then chat from WeChat in the same conversation. The assistant decides for each reply whether it also goes to WeChat, so what you need to see reaches you there wherever you last wrote. Images, files, voice, and video you send are shown in the conversation and saved in the workspace's `IM/WeChat/` for 30 days (adjustable; 0 keeps them); the assistant copies a file out before working on it. Replies are text split into short messages; the assistant can also send pictures, videos, and files from its workspace, which show in WeChat as pictures, videos (MP4 and MOV), or files to open.
 - Tool isolation in both directions.
 
 ## Settings
@@ -73,7 +73,7 @@ Next: single-window self-management for the parent agent — its own context, mo
 - Heartbeats stop while the app is closed or the computer sleeps; what is still ahead is given on waking.
 - The app keeps its own copy of every image and file shown in a conversation, even after `IM/WeChat/` has removed the original.
 - Only tools are isolated; global prompt contexts injected by other plugins are not filtered.
-- The assistant cannot send images or files to WeChat yet. Voice stays as raw SILK audio, with WeChat's transcript as its text.
+- The assistant cannot send voice messages; an audio file goes as a file. Only files inside the assistant's workspace can be sent, up to 100 MB each. Voice you send stays as raw SILK audio, with WeChat's transcript as its text.
 - Workers cannot modify anything outside their workspace; on DSH 0.2.1-rc.5 an approved path only reaches the write/edit tools, not shell commands.
 - Verified on macOS with Desktop 0.2.1-rc.5 and 0.2.2-rc.1; other systems are untested.
 

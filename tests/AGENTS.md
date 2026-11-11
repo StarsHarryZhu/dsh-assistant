@@ -21,7 +21,7 @@ The vitest specs. Host modules and entry plugins run against fake host services 
 - `watchdog.test.ts` — the watchdog.
 - `heartbeat.test.ts` — the daily brief, reminders, wake-ups, heartbeats, quiet hours, the daily inbox clean-up, the ask to keep WeChat open, restarts, with a clock moved by hand.
 - `quiet.test.ts` — daily and temporary quiet hours, and where a reminder goes.
-- `assistant-tools.test.ts` — `im_route`, `wake_after`, `wake_cancel`, `quiet_set`, `brief_set`, `media_copy`, the inbox clean-up, and the tool titles.
+- `assistant-tools.test.ts` — `im_route` with and without files, the outbound file checks, `wake_after`, `wake_cancel`, `quiet_set`, `brief_set`, `media_copy`, the inbox clean-up, and the tool titles.
 - `hidden-sessions.test.ts` — assistant conversations left out of the session lists.
 - `silent-turns.test.tsx` — which turns are marked to be hidden, retried requests, the oldest turn on screen, and text-only updates included.
 - `wechat-link.test.ts` — the WeChat link (binding, reconnect, diagnosis, options, status sync) and the host-note request ids (the real im-robot module through the development link).

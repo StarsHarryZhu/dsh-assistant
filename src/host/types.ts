@@ -212,14 +212,19 @@ export interface ImRobotLike {
   unbind(bindingId: string): Promise<void>
   status(bindingId: string): ImBindingStatus | Promise<ImBindingStatus>
   setBindingOptions?(bindingId: string, options: { sendMode?: 'queue' | 'steer'; commands?: boolean; enabled?: boolean; replyMaxChars?: number; mediaDir?: string }): unknown
-  /** Send text to the account through its outbox, not before `notBefore`; throws when the binding cannot send. Since im-robot 0.2.0; `notBefore` since 0.2.1. */
-  send?(bindingId: string, text: string, options?: { notBefore?: number }): void
   /**
-   * Route the bound session's running turn: its final text to the chat (not
-   * before `notBefore`) or kept off it; false when no turn is running; throws
-   * when the binding cannot send. Since im-robot 0.2.1.
+   * Send text, then `files` (absolute paths), to the account through its
+   * outbox, not before `notBefore`; throws when the binding cannot send or a
+   * file cannot go. Since im-robot 0.2.0; `notBefore` since 0.2.1; `files` since 0.3.0.
    */
-  route?(bindingId: string, route: { chat: boolean; notBefore?: number }): boolean
+  send?(bindingId: string, text: string, options?: { notBefore?: number; files?: readonly string[] }): void
+  /**
+   * Route the bound session's running turn: its final text, then `files`
+   * (absolute paths, only with `chat: true`), to the chat (not before
+   * `notBefore`) or kept off it; false when no turn is running; throws when the
+   * binding cannot send or a file cannot go. Since im-robot 0.2.1; `files` since 0.3.0.
+   */
+  route?(bindingId: string, route: { chat: boolean; notBefore?: number; files?: readonly string[] }): boolean
   reconnect?(bindingId: string): Promise<ImBindingStatus>
   diagnose?(bindingId: string): Promise<ImDiagnosis>
 }

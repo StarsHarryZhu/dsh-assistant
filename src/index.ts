@@ -214,13 +214,14 @@ export function apply(ctx: Context, config: Config): void {
     markInput: (sessionId, channel) => { inputs.set(sessionId, channel) },
     zoneFor: session => zoneOfFolder(session === undefined ? undefined : service.personForSession(session.id)?.cwd ?? session.header.cwd),
     chatConnected,
-    routeChat: (person, sessionId, send) => {
+    routeChat: (person, sessionId, send, files = []) => {
       const robot = host.get('imRobot')
       if (!chatConnected(person) || robot?.route === undefined) return { status: 'unavailable' }
       if (!send) return robot.route(person.id, { chat: false }) ? { status: 'kept' } : { status: 'no-turn' }
       const quiet = quietSpanAt(assistantSettings(person), Date.now(), zoneOfFolder(person.cwd))
       const held = quiet !== undefined && !userTurns.has(sessionId) && !quietPasses.has(sessionId)
-      if (!robot.route(person.id, held ? { chat: true, notBefore: quiet.end } : { chat: true })) return { status: 'no-turn' }
+      const route = { chat: true, ...(held ? { notBefore: quiet.end } : {}), ...(files.length === 0 ? {} : { files }) }
+      if (!robot.route(person.id, route)) return { status: 'no-turn' }
       return held ? { status: 'held', until: quiet.end } : { status: 'routed' }
     },
     turnFromUser: sessionId => userTurns.has(sessionId),

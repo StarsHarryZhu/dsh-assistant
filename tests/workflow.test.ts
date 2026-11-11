@@ -128,6 +128,9 @@ describe('the router prompt', () => {
     expect(router).toContain('A turn a message from the user started is never one.')
     expect(router).toContain('**WeChat writes its built-in emoji as their names in brackets**')
     expect(router).toContain('`[Onlooker]`')
+    expect(router).toContain('**Sending files**: to send them a picture, a video, or a document, call `im_route` with send true and `files`')
+    expect(router).toContain('Only files inside the workspace can go')
+    expect(router).toContain('Voice messages cannot be sent; an audio file goes as a file.')
   })
 
   it('keeps the time zone from what the user says and their schedule, not this computer', () => {

@@ -82,9 +82,10 @@ export interface AssistantService {
     chatConnected(person: Person): boolean;
     /**
      * Route the running turn's final reply: to the chat app as well (at the end
-     * of quiet hours, unless this turn may reach them inside them), or the app only.
+     * of quiet hours, unless this turn may reach them inside them), followed by
+     * `files` (checked absolute paths), or the app only.
      */
-    routeChat(person: Person, sessionId: string, send: boolean): RouteOutcome;
+    routeChat(person: Person, sessionId: string, send: boolean, files?: readonly string[]): RouteOutcome;
     /** Whether the session's running turn holds a message from the user, on any channel. */
     turnFromUser(sessionId: string): boolean;
     /** The wake-ups an assistant has waiting, soonest first. */

@@ -40,10 +40,20 @@ export const RECORD_TOOLS = Object.keys(TITLES) as RecordToolName[]
  */
 export function recordToolTitle(tool: RecordToolName, args: Readonly<Record<string, unknown>>): string {
   if (tool === 'im_route' && args.send === false) return '回复只留在这里'
+  if (tool === 'im_route' && Array.isArray(args.files) && args.files.length > 0) return filesTitle(args.files)
   const [label, field] = TITLES[tool]
   const value = field === undefined ? undefined : args[field]
   if (typeof value !== 'string' || value.trim() === '') return label
   const shown = (field === 'file' ? value.split(/[/\\]/u).at(-1) ?? value : value).trim()
   const chars = [...shown]
   return `${label}：${chars.length > MAX_TITLE_VALUE ? `${chars.slice(0, MAX_TITLE_VALUE).join('')}…` : shown}`
+}
+
+/** @returns the title of a reply sent with files: "发到微信：报告.pdf、照片.jpg". */
+function filesTitle(files: readonly unknown[]): string {
+  const names = files.filter((file): file is string => typeof file === 'string' && file.trim() !== '').map(file => file.trim().split(/[/\\]/u).at(-1) ?? file)
+  if (names.length === 0) return '回复也发到微信'
+  const shown = names.join('、')
+  const chars = [...shown]
+  return `发到微信：${chars.length > MAX_TITLE_VALUE ? `${chars.slice(0, MAX_TITLE_VALUE).join('')}…` : shown}`
 }
