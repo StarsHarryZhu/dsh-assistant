@@ -31,6 +31,8 @@ export declare const DEFAULTS: {
     readonly personaCooldownHours: 24;
     readonly personaMaxChars: 2000;
     readonly profileMaxChars: 6000;
+    readonly offPeakWork: true;
+    readonly peakHours: "09:00-12:00,14:00-18:00";
 };
 /** One model workers may run. */
 export interface WorkerModel {
@@ -172,8 +174,6 @@ export interface WechatState {
     /** When the host wrote this state, epoch milliseconds. */
     readonly updatedAt: number;
 }
-/** Settings fields only the page and the host use; the settings page hides them. */
-export declare const INTERNAL_FIELDS: readonly ["people", "wechatRequest", "wechatState"];
 /**
  * Read the assistant list.
  * @param value - the stored `people` value.

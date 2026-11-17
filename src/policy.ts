@@ -35,10 +35,11 @@ import { guarded } from './host/service.ts'
 import type { AssistantService } from './host/service.ts'
 import { formatYuan, reminderFor } from './host/balance.ts'
 import { assistantTools } from './host/assistant-tools.ts'
-import { calendarText, clockText, processZone, weekdayOf } from './host/calendar.ts'
-import { local, parseDdl, weekView } from './host/ddl.ts'
+import { calendarText, clockText, processZone, whenText } from './host/calendar.ts'
+import { parseDdl, weekView } from './host/ddl.ts'
 import { assistantSettings } from './shared/settings.ts'
 import type { Person, SandboxMode } from './shared/settings.ts'
+import { CALENDAR_FILE } from './host/records/calendar.ts'
 import { RecordStore } from './host/records/store.ts'
 import { recordTools } from './host/records/tools.ts'
 import { createToolFence } from './host/tool-fence.ts'
@@ -53,6 +54,7 @@ import type {
   ToolsLike,
 } from './host/types.ts'
 import { workspaceText } from './host/workspace.ts'
+import { offPeakText } from './host/off-peak.ts'
 
 export const name = 'dsh-assisstant-policy'
 export const inject = ['systemPrompt', 'tools', 'agents', 'dshAssisstant']
@@ -149,10 +151,7 @@ export function channelText(service: AssistantService, sessionId: string): strin
 /** @returns the heartbeat and quiet hours as they stand, for the model to answer questions and tell what it may do. */
 export function heartbeatContext(service: AssistantService, person: Person, zone: string): string {
   const settings = assistantSettings(person)
-  const when = (ms: number): string => {
-    const at = local(ms, zone)
-    return `${at.short} ${weekdayOf(at.iso)} ${at.time}`
-  }
+  const when = (ms: number): string => whenText(ms, zone)
   const lines = ['# Heartbeat and quiet hours', '']
   lines.push(settings.heartbeatMinutes > 0 ? `- Heartbeat: every ${settings.heartbeatMinutes} minutes.` : '- Heartbeat: off.')
   lines.push(`- Daily brief: ${settings.dailyBriefTime === '' ? 'off' : settings.dailyBriefTime}. Reminders come ${settings.reminderLeadMinutes} minutes before timed items.`)
@@ -193,44 +192,57 @@ export function apply(ctx: Context, config: Config): void {
   host.on('system-prompt/assemble', (async (_assembly: unknown, _context: unknown, next: () => Promise<PresentationLike>) =>
     settleSections(await next(), role)) as never)
 
-  ctx.effect(() => host.systemPrompt.context({
-    name: 'dsh-assisstant:calendar',
-    order: 105,
-    required: true,
-    interpolate: false,
-    text: assembly => calendarText(new Date(), zoneOf(assembly?.agent)),
-  }))
-  ctx.effect(() => host.systemPrompt.context({
-    name: 'dsh-assisstant:workspace',
-    order: 106,
-    interpolate: false,
-    text: (assembly) => {
-      const person = personOf(assembly?.agent)
-      const settings = service.settings()
-      return workspaceText(person?.cwd ?? assembly?.agent?.session.header.cwd, {
-        name: person?.name,
-        address: person?.address,
-        profileMaxChars: settings.profileMaxChars,
-        personaMaxChars: settings.personaMaxChars,
-        personaSelfCorrect: settings.personaSelfCorrect,
-        personaCooldownHours: settings.personaCooldownHours,
-        standInZone: processZone(),
-      }, Date.now())
-    },
-  }))
+  /** The folder of the assistant an agent works for. */
+  const folderOf = (agent: AgentLike | undefined): string | undefined => personOf(agent)?.cwd ?? agent?.session.header.cwd
+  /** @returns the schedule file of that folder, or undefined while there is none. */
+  const scheduleOf = (agent: AgentLike | undefined): string | undefined => {
+    const cwd = folderOf(agent)
+    if (cwd === undefined) return undefined
+    try {
+      return readFileSync(join(cwd, CALENDAR_FILE), 'utf8')
+    } catch {
+      return undefined
+    }
+  }
+  /** Add one context to the prompt; an empty text leaves it out. */
+  const context = (name: string, order: number, text: (agent: AgentLike | undefined) => string, required = false): void => {
+    ctx.effect(() => host.systemPrompt.context({
+      name: `dsh-assisstant:${name}`,
+      order,
+      ...(required ? { required } : {}),
+      interpolate: false,
+      text: (assembly: AssemblyLike | undefined) => text(assembly?.agent),
+    }))
+  }
 
-  // The host's own clock knows only the browser's and the device's zones.
-  const clockRead = new Map<string, { at: number; zone: string }>()
+  context('calendar', 105, agent => calendarText(new Date(), zoneOf(agent)), true)
+  context('workspace', 106, (agent) => {
+    const person = personOf(agent)
+    const settings = service.settings()
+    return workspaceText(folderOf(agent), {
+      name: person?.name,
+      address: person?.address,
+      profileMaxChars: settings.profileMaxChars,
+      personaMaxChars: settings.personaMaxChars,
+      personaSelfCorrect: settings.personaSelfCorrect,
+      personaCooldownHours: settings.personaCooldownHours,
+      standInZone: processZone(),
+    }, Date.now())
+  })
+
+  // The host's own clock knows only the browser's and the device's zones. Readings are kept per live agent, so
+  // those of the many workers that come and go leave with them.
+  const clockRead = new WeakMap<AgentLike, { at: number; zone: string }>()
   host.on('agent/pre-step', (async ({ agent, signal }: PreStepInput, next: () => Promise<PreStepDecision>) => {
     const decision = await next()
     if (decision.kind === 'reject' || signal?.aborted === true) return decision
     try {
       const now = Date.now()
       const zone = zoneOf(agent)
-      const last = clockRead.get(agent.session.id)
+      const last = clockRead.get(agent)
       // A newly recorded zone shows at once.
       if (last !== undefined && last.zone === zone && now >= last.at && now - last.at < CLOCK_REFRESH_MS) return decision
-      clockRead.set(agent.session.id, { at: now, zone })
+      clockRead.set(agent, { at: now, zone })
       const text = clockText(new Date(now), zone)
       return {
         ...decision,
@@ -292,49 +304,24 @@ export function apply(ctx: Context, config: Config): void {
 
   for (const tool of assistantTools({ service, person: personOf, zone: zoneOf })) ctx.effect(() => host.tools.register(tool))
 
-  ctx.effect(() => host.systemPrompt.context({
-    name: 'dsh-assisstant:schedule',
-    order: 107,
-    interpolate: false,
-    text: (assembly) => {
-      const cwd = personOf(assembly?.agent)?.cwd ?? assembly?.agent?.session.header.cwd
-      if (cwd === undefined) return ''
-      let file: string
-      try {
-        file = readFileSync(join(cwd, 'ddl.md'), 'utf8')
-      } catch {
-        return '# Schedule (ddl.md)\n\nNo ddl.md yet: nothing is recorded.'
-      }
-      return `# Schedule (ddl.md, converted to the user's time)\n\nThe host parsed ddl.md for you; trust this view and answer schedule questions from it.\n\n${weekView(parseDdl(file), new Date(), zoneOf(assembly?.agent))}`
-    },
-  }))
-  ctx.effect(() => host.systemPrompt.context({
-    name: 'dsh-assisstant:balance',
-    order: 108,
-    interpolate: false,
-    text: () => balanceText(service),
-  }))
-  ctx.effect(() => host.systemPrompt.context({
-    name: 'dsh-assisstant:channel',
-    order: 109,
-    interpolate: false,
-    text: assembly => (assembly?.agent === undefined ? '' : channelText(service, assembly.agent.session.id)),
-  }))
-  ctx.effect(() => host.systemPrompt.context({
-    name: 'dsh-assisstant:permission',
-    order: 110,
-    interpolate: false,
-    text: assembly => permissionText(assistantSettings(personOf(assembly?.agent)).sandboxMode),
-  }))
-  ctx.effect(() => host.systemPrompt.context({
-    name: 'dsh-assisstant:heartbeat',
-    order: 111,
-    interpolate: false,
-    text: (assembly) => {
-      const person = personOf(assembly?.agent)
-      return person === undefined ? '' : heartbeatContext(service, person, zoneOf(assembly?.agent))
-    },
-  }))
+  context('schedule', 107, (agent) => {
+    if (folderOf(agent) === undefined) return ''
+    const file = scheduleOf(agent)
+    return file === undefined
+      ? `# Schedule (${CALENDAR_FILE})\n\nNo ${CALENDAR_FILE} yet: nothing is recorded.`
+      : `# Schedule (${CALENDAR_FILE}, converted to the user's time)\n\nThe host parsed ${CALENDAR_FILE} for you; trust this view and answer schedule questions from it.\n\n${weekView(parseDdl(file), new Date(), zoneOf(agent))}`
+  })
+  context('balance', 108, () => balanceText(service))
+  context('channel', 109, agent => (agent === undefined ? '' : channelText(service, agent.session.id)))
+  context('permission', 110, agent => permissionText(assistantSettings(personOf(agent)).sandboxMode))
+  context('off-peak', 113, (agent) => {
+    const windows = service.peakWindows()
+    return windows === undefined ? '' : offPeakText(windows, Date.now(), zoneOf(agent))
+  })
+  context('heartbeat', 111, (agent) => {
+    const person = personOf(agent)
+    return person === undefined ? '' : heartbeatContext(service, person, zoneOf(agent))
+  })
 
   // ---- the balance tool and /ddl ----
   ctx.effect(() => host.tools.register(defineTool({
@@ -372,19 +359,8 @@ export function apply(ctx: Context, config: Config): void {
     ctx.effect(() => commands.register({
       name: 'ddl',
       description: '列出未来一周的 DDL 和日程',
-      handler: ({ agent }) => {
-        const cwd = personOf(agent)?.cwd ?? agent.session.header.cwd
-        let file = ''
-        try {
-          file = cwd === undefined ? '' : readFileSync(join(cwd, 'ddl.md'), 'utf8')
-        } catch {
-          // No file yet: an empty week.
-        }
-        return { kind: 'success', text: weekView(parseDdl(file), new Date(), zoneOf(agent)) }
-      },
+      // No file yet reads as an empty week.
+      handler: ({ agent }) => ({ kind: 'success', text: weekView(parseDdl(scheduleOf(agent) ?? ''), new Date(), zoneOf(agent)) }),
     }))
   }
 }
-
-/** Kept for tests that assemble a prompt without an agent. */
-export type { AssemblyLike }

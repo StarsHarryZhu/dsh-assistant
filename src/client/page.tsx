@@ -34,6 +34,10 @@ function pickFolder(workspace: UiWorkspaceLike | undefined): Promise<string | nu
   return workspace === undefined ? Promise.reject(new Error('no folder chooser')) : workspace.pickDirectory()
 }
 
+/** How often, and how many more times, the page asks for the conversation while it stays on screen. */
+const OPEN_RETRY_MS = 400
+const OPEN_RETRIES = 5
+
 /** Build the `main` entry component. */
 export function createMainPage(deps: PageDeps) {
   return function MainPage(props: { t?: Translate }): ReactNode {
@@ -53,7 +57,21 @@ export function createMainPage(deps: PageDeps) {
     const showForm = adding || view.people.length === 0
     const target = view.ready && !showForm && opening === undefined && pending.length === 0 ? assistantToOpen(view.people)?.sessionId : undefined
     useEffect(() => {
-      if (target !== undefined) deps.workspace()?.openSession(target)
+      if (target === undefined) return
+      // The host may still be switching to this panel when the page first draws, and
+      // then shows the panel over the conversation; while the page stays up, ask again.
+      const open = (): void => { deps.workspace()?.openSession(target) }
+      let tries = 0
+      const first = setTimeout(open, 0)
+      const again = setInterval(() => {
+        tries += 1
+        if (tries > OPEN_RETRIES) clearInterval(again)
+        else open()
+      }, OPEN_RETRY_MS)
+      return () => {
+        clearTimeout(first)
+        clearInterval(again)
+      }
     }, [target])
 
     if (!view.ready) return <div className="dsa-page"><p className="dsa-note">{t('page.loading')}</p></div>

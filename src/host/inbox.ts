@@ -14,9 +14,6 @@ import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'nod
 /** The inbox folder in a workspace. */
 export const INBOX_FOLDER = 'IM'
 
-/** WeChat's folder in the inbox. */
-export const WECHAT_FOLDER = `${INBOX_FOLDER}/WeChat`
-
 /** Where chat files landed before the inbox existed (dsh-assistant 0.2.0 development builds). */
 export const LEGACY_TEMP_FOLDER = 'temp'
 

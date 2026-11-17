@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { Heartbeat, WINDOW_NUDGE, clearAutomationTasks, heartbeatText } from '../src/host/heartbeat.ts'
+import { parsePeakHours, peakSpanAt } from '../src/shared/peak.ts'
+import type { PeakWindow } from '../src/shared/peak.ts'
 import type { AssistantSettings, Person } from '../src/shared/settings.ts'
 
 const ZONE = 'Asia/Shanghai'
@@ -28,6 +30,8 @@ function setup(settings: Partial<AssistantSettings> = {}, options: { now?: strin
     /** What went straight to WeChat: "HH:MM|text" by the Shanghai clock. */
     chats: [] as string[],
     failChat: false,
+    /** DeepSeek's peak hours; none by default. */
+    peak: [] as PeakWindow[],
   }
   const directory = options.directory ?? mkdtempSync(join(tmpdir(), 'dsa-heartbeat-'))
   const make = () => new Heartbeat({
@@ -48,6 +52,7 @@ function setup(settings: Partial<AssistantSettings> = {}, options: { now?: strin
       world.chats.push(`${new Date(world.now + 8 * 3_600_000).toISOString().slice(5, 16)}|${text}`)
     },
     warn: (message) => { world.warnings.push(message) },
+    inPeak: time => peakSpanAt(world.peak, time) !== undefined,
     directory,
   })
   const beat = make()
@@ -280,6 +285,17 @@ describe('quiet hours', () => {
     expect(beat.wakes('mom')).toEqual([])
   })
 
+  it('hold a wake-up for off-peak hours through quiet hours and then through the peak', () => {
+    const { world, beat, until } = setup({ quietStart: '22:00', quietEnd: '09:30', heartbeatMinutes: 0, dailyBriefTime: '' }, { now: '2026-11-05T23:00' })
+    world.peak = parsePeakHours('09:00-12:00,14:00-18:00') ?? []
+    beat.addWake('mom', { at: at('2026-11-06T03:00'), reason: '整理旧笔记', throughQuiet: false, offPeak: true })
+    until('2026-11-06T11:59')
+    expect(world.notes).toEqual([])
+    until('2026-11-06T12:00')
+    expect(world.notes).toHaveLength(1)
+    expect(world.notes[0]).toContain('整理旧笔记 (this waited for off-peak hours: start it now)')
+  })
+
   it('include temporary ones', () => {
     const { world, until } = setup({ ...quiet, quietStart: '', quietEnd: '', tempQuietFrom: at('2026-11-05T13:00'), tempQuietUntil: at('2026-11-05T15:00') })
     until('2026-11-05T13:00')
@@ -288,6 +304,38 @@ describe('quiet hours', () => {
     expect(world.notes).toHaveLength(before)
     until('2026-11-05T15:00')
     expect(world.notes).toHaveLength(before + 1)
+  })
+})
+
+describe('DeepSeek peak hours', () => {
+  it('hold only the wake-ups set for off-peak hours, which survive a restart', () => {
+    const { world, beat, until, make } = setup({ heartbeatMinutes: 0 }, { now: '2026-11-05T13:00' })
+    world.peak = parsePeakHours('09:00-12:00,14:00-18:00') ?? []
+    beat.addWake('mom', { at: at('2026-11-05T14:30'), reason: '查快递', throughQuiet: false })
+    beat.addWake('mom', { at: at('2026-11-05T14:30'), reason: '整理项目文档', throughQuiet: false, offPeak: true })
+    until('2026-11-05T14:30')
+    expect(world.notes).toHaveLength(1)
+    expect(world.notes[0]).toContain('查快递')
+    expect(world.notes[0]).not.toContain('整理项目文档')
+    const again = make()
+    expect(again.wakes('mom')).toEqual([{ id: expect.any(String), at: at('2026-11-05T14:30'), reason: '整理项目文档', throughQuiet: false, offPeak: true }])
+    until('2026-11-05T17:59', again)
+    expect(world.notes).toHaveLength(1)
+    until('2026-11-05T18:00', again)
+    expect(world.notes).toHaveLength(2)
+    expect(world.notes[1]).toContain('整理项目文档 (this waited for off-peak hours: start it now)')
+  })
+
+  it('hold nothing on a weekend or when no peak hours are set', () => {
+    const { world, beat, until } = setup({ heartbeatMinutes: 0 }, { now: '2026-11-07T10:00' })
+    world.peak = parsePeakHours('09:00-12:00,14:00-18:00') ?? []
+    beat.addWake('mom', { at: at('2026-11-07T10:30'), reason: '周末整理', throughQuiet: false, offPeak: true })
+    until('2026-11-07T10:30')
+    expect(world.notes).toHaveLength(1)
+    world.peak = []
+    beat.addWake('mom', { at: at('2026-11-07T10:40'), reason: '没有高峰', throughQuiet: false, offPeak: true })
+    until('2026-11-07T10:40')
+    expect(world.notes).toHaveLength(2)
   })
 })
 

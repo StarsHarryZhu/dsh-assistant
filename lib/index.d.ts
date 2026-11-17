@@ -33,6 +33,8 @@ export interface Config {
     personaCooldownHours: Volatile<number>;
     personaMaxChars: Volatile<number>;
     profileMaxChars: Volatile<number>;
+    offPeakWork: Volatile<boolean>;
+    peakHours: Volatile<string>;
     people: Volatile<unknown[]>;
     wechatRequest: Volatile<unknown>;
     wechatState: Volatile<Record<string, unknown>>;

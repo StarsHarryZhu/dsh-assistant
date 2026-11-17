@@ -7,6 +7,8 @@
  * @module dsh-assisstant/shared/settings
  */
 
+import { DEFAULT_PEAK_HOURS } from './peak.ts'
+
 /** The npm package name: the browser bundle's registration id and the Plugins page key for this bundle. */
 export const PACKAGE_NAME = '@starsharryzhu/dsh-assistant'
 
@@ -37,6 +39,8 @@ export const DEFAULTS = {
   personaCooldownHours: 24,
   personaMaxChars: 2000,
   profileMaxChars: 6000,
+  offPeakWork: true,
+  peakHours: DEFAULT_PEAK_HOURS,
 } as const
 
 /** One model workers may run. */
@@ -191,9 +195,6 @@ export interface WechatState {
   /** When the host wrote this state, epoch milliseconds. */
   readonly updatedAt: number
 }
-
-/** Settings fields only the page and the host use; the settings page hides them. */
-export const INTERNAL_FIELDS = ['people', 'wechatRequest', 'wechatState'] as const
 
 /** @returns the value as a non-empty trimmed string, or undefined. */
 function text(value: unknown): string | undefined {

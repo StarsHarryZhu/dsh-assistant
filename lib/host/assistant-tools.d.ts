@@ -9,6 +9,29 @@
 import type { Person } from '../shared/settings.ts';
 import type { AssistantService } from './service.ts';
 import type { AgentLike } from './types.ts';
+/** The result shape every assistant tool shares: whether it worked, and plain text for the model. */
+export declare const OUTPUT: {
+    readonly schema: {
+        readonly type: "object";
+        readonly additionalProperties: false;
+        readonly properties: {
+            readonly ok: {
+                readonly type: "boolean";
+                readonly required: true;
+            };
+            readonly message: {
+                readonly type: "string";
+                readonly required: true;
+            };
+        };
+    };
+    readonly render: (_args: unknown, value: {
+        message: string;
+    }) => {
+        type: "text";
+        text: string;
+    }[];
+};
 /** What the tools need from the policy. */
 export interface AssistantToolDeps {
     readonly service: AssistantService;

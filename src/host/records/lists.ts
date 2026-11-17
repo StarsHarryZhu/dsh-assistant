@@ -4,6 +4,7 @@
  * @module dsh-assisstant/host/records/lists
  */
 
+import { addDays } from '../calendar.ts'
 import { joinLines, linesOf, matching, oneLine } from './text.ts'
 
 export const LISTS_FOLDER = 'lists'
@@ -47,11 +48,6 @@ function lineOf(title: string, today?: string): string {
   return today === undefined ? `- [ ] ${title}` : `- [x] ${title}（完成 ${today}）`
 }
 
-/** @returns the date that many days before. */
-function daysBefore(date: string, days: number): string {
-  return new Date(Date.parse(`${date}T00:00Z`) - days * 86_400_000).toISOString().slice(0, 10)
-}
-
 /**
  * Apply one call's changes.
  * @param text - the file, undefined when absent.
@@ -91,7 +87,7 @@ export function editList(text: string | undefined, name: string, edit: ListEdit,
     if (last === undefined) lines.push('', lineOf(title))
     else lines.splice(last + 1, 0, lineOf(title))
   }
-  const cutoff = daysBefore(today, DONE_KEEP_DAYS)
+  const cutoff = addDays(today, -DONE_KEEP_DAYS)
   const kept = lines.filter((line) => {
     const doneOn = ITEM.exec(line.trim())?.[3]
     return doneOn === undefined || doneOn >= cutoff

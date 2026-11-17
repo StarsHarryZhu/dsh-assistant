@@ -37,5 +37,6 @@ The record tools and the file formats behind them: quick reads and writes of fix
 ## 4. Progress
 
 - Done (2026-11-02, user request): all nine tools and repeating items, with specs in `tests/records.test.ts` and `tests/ddl.test.ts`.
+- Done (2026-11-17): the `HH:MM` pattern and date arithmetic come from the parent folder's `calendar.ts` instead of local copies, and `tools.ts` exports the call card for the assistant's own tools.
 - Open: try the tools with the real model and measure what their schemas add to each request.
 - Goal later: a page or tab that shows these records to the user.

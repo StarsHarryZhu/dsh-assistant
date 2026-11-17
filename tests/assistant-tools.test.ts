@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { assistantTools } from '../src/host/assistant-tools.ts'
 import { copyFromInbox, copyName, pruneOldFiles } from '../src/host/inbox.ts'
 import { MAX_OUTBOUND_FILE_BYTES, outboundFiles } from '../src/host/outbound.ts'
+import { parsePeakHours } from '../src/shared/peak.ts'
 import { recordToolTitle } from '../src/shared/record-tools.ts'
 import type { WakeRequest } from '../src/host/heartbeat.ts'
 import type { Person } from '../src/shared/settings.ts'
@@ -182,6 +183,41 @@ describe('wake_after', () => {
     const own = await call('wake_after', { reason: '半夜看看', date: '2026-11-06', time: '03:00', through_quiet: true })
     expect(own.ok).toBe(false)
     expect(wakes).toHaveLength(1)
+  })
+})
+
+describe('wake_after with off_peak', () => {
+  // NOW is Thursday 2026-11-05 14:00 in Shanghai, in DeepSeek's afternoon peak.
+  it('wakes when the peak hours end, or at the first off-peak moment after the time asked', async () => {
+    const { service, call, wakes } = setup()
+    service.peakWindows = () => parsePeakHours('09:00-12:00,14:00-18:00')
+    const now = await call('wake_after', { reason: '整理笔记', off_peak: true })
+    expect(now).toMatchObject({ ok: true, message: 'You will be woken at 11/05 18:00, when DeepSeek\'s peak hours end.' })
+    expect(wakes[0]).toEqual({ at: Date.parse('2026-11-05T18:00:00+08:00'), reason: '整理笔记', throughQuiet: false, offPeak: true })
+    const later = await call('wake_after', { reason: '明早整理', date: '2026-11-06', time: '10:00', off_peak: true })
+    expect(later.message).toContain('11/06 12:00')
+    expect(wakes[1]?.at).toBe(Date.parse('2026-11-06T12:00:00+08:00'))
+    const evening = await call('wake_after', { reason: '晚上整理', time: '19:00', off_peak: true })
+    expect(evening.message).toBe('You will be woken at 11/05 19:00.')
+  })
+
+  it('says so when the end of the peak falls in quiet hours', async () => {
+    const { service, call } = setup({ id: 'mom', name: '阿福', cwd: '/w', sessionId: 's', settings: { quietStart: '17:00', quietEnd: '08:00' } })
+    service.peakWindows = () => parsePeakHours('09:00-12:00,14:00-18:00')
+    const result = await call('wake_after', { reason: '整理', off_peak: true })
+    expect(result.ok).toBe(true)
+    expect(result.message).toContain('when they end, at 11/06 08:00')
+  })
+
+  it('refuses when it is off-peak already, when the setting is off, and with through_quiet', async () => {
+    const { service, call, wakes } = setup()
+    service.peakWindows = () => parsePeakHours('09:00-12:00')
+    expect(await call('wake_after', { reason: '整理', off_peak: true })).toMatchObject({ ok: false, message: expect.stringContaining('do it now') })
+    service.peakWindows = () => parsePeakHours('09:00-12:00,14:00-18:00')
+    expect(await call('wake_after', { reason: '整理', off_peak: true, through_quiet: true })).toMatchObject({ ok: false, message: expect.stringContaining('do not go together') })
+    service.peakWindows = () => undefined
+    expect(await call('wake_after', { reason: '整理', off_peak: true })).toMatchObject({ ok: false, message: expect.stringContaining('switched off') })
+    expect(wakes).toEqual([])
   })
 })
 

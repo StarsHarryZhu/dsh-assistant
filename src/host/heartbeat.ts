@@ -28,8 +28,8 @@ import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node
 import { join } from 'node:path'
 import { assistantSettings, folderName } from '../shared/settings.ts'
 import type { AssistantSettings, Person } from '../shared/settings.ts'
-import { weekdayOf } from './calendar.ts'
-import { local, parseDdl, repeatsOn, todayItems, zonedToUtc } from './ddl.ts'
+import { CLOCK_TIME, addDays, local, weekdayOf, whenText, zonedToUtc } from './calendar.ts'
+import { parseDdl, repeatsOn, todayItems } from './ddl.ts'
 import type { DdlEntry } from './ddl.ts'
 import { nudgeAt, quietSpanAt, remindAt } from './quiet.ts'
 import { CALENDAR_FILE, hasClockTime, isMuted } from './records/calendar.ts'
@@ -64,6 +64,8 @@ export interface WakeRequest {
   readonly reason: string
   /** The user asked for exactly this moment, so quiet hours do not hold it back. */
   readonly throughQuiet: boolean
+  /** Work that can wait: DeepSeek's peak hours hold it back as well. */
+  readonly offPeak?: boolean
 }
 
 /** What is kept about one assistant between ticks and restarts. */
@@ -102,12 +104,12 @@ export interface HeartbeatDeps {
   chatWindow?(person: Person): number | undefined
   /** Send text straight to the chat app, without the model; throws when it cannot. */
   sendChat?(person: Person, text: string): void
+  /** Whether DeepSeek's peak hours hold back work that can wait at this instant. */
+  inPeak?(at: number): boolean
   warn(message: string): void
   /** The folder of the state files. */
   directory: string
 }
-
-const TIME = /^([01]\d|2[0-3]):[0-5]\d$/u
 
 const MINUTE_MS = 60_000
 
@@ -125,12 +127,6 @@ const REPEAT_HORIZON_DAYS = 2
 
 /** What the user reads on WeChat shortly before it stops taking the assistant's messages: in their language. */
 export const WINDOW_NUDGE = '快一天没在微信里聊了。微信规定超过一天没说话，我就没法先给你发消息。回我一句就好，之后的提醒和日程才能照常发过来。'
-
-/** @returns the instant as "11/05 周四 14:30". */
-function whenText(ms: number, zone: string): string {
-  const at = local(ms, zone)
-  return `${at.short} ${weekdayOf(at.iso)} ${at.time}`
-}
 
 /** What one note says. */
 export interface NoteParts {
@@ -170,7 +166,7 @@ export function heartbeatText(parts: NoteParts): string {
     lines.push('', 'Reminders due now. Tell them in one warm sentence; the time may be well ahead if quiet hours moved the reminder, so say when it is.', ...parts.reminders.map(item => `- ${item}`))
   }
   if (parts.wakes.length > 0) {
-    lines.push('', 'You asked to be woken now:', ...parts.wakes.map(wake => `- ${wake.reason}`))
+    lines.push('', 'You asked to be woken now:', ...parts.wakes.map(wake => `- ${wake.reason}${wake.offPeak === true ? ' (this waited for off-peak hours: start it now)' : ''}`))
     if (parts.inQuiet) lines.push('They asked for this during their quiet hours, so it may reach them now.')
   }
   if (!due) {
@@ -191,7 +187,7 @@ function readState(value: unknown): HeartbeatState {
   const reminded = record.reminded !== null && typeof record.reminded === 'object' ? record.reminded as Record<string, number> : {}
   const wakes = (Array.isArray(record.wakes) ? record.wakes as WakeRequest[] : [])
     .filter(wake => typeof wake?.id === 'string' && typeof wake.at === 'number' && typeof wake.reason === 'string')
-    .map(wake => ({ id: wake.id, at: wake.at, reason: wake.reason, throughQuiet: wake.throughQuiet === true }))
+    .map(wake => ({ id: wake.id, at: wake.at, reason: wake.reason, throughQuiet: wake.throughQuiet === true, ...wake.offPeak === true ? { offPeak: true } : {} }))
   return {
     ...(lastCheckedAt === undefined ? {} : { lastCheckedAt }),
     ...(lastBeatAt === undefined ? {} : { lastBeatAt }),
@@ -208,11 +204,11 @@ function eventsOf(entry: DdlEntry, now: number, zone: string, leadMinutes: numbe
   if (entry.repeat === undefined) return entry.start === undefined ? [] : [entry.start]
   const { rule, time } = entry.repeat
   if (time === undefined) return []
-  const today = Date.parse(`${local(now, zone).iso}T00:00Z`)
+  const today = local(now, zone).iso
   const days = REPEAT_HORIZON_DAYS + Math.ceil(leadMinutes / 1440)
   const events: number[] = []
   for (let offset = 0; offset <= days; offset += 1) {
-    const day = new Date(today + offset * 86_400_000).toISOString().slice(0, 10)
+    const day = addDays(today, offset)
     if (repeatsOn(rule, day)) events.push(zonedToUtc(day, time, zone))
   }
   return events
@@ -344,7 +340,9 @@ export class Heartbeat {
     if (!quiet) this.nudgeIfClosing(person, settings, state, now, zone)
     if (this.deps.running(sessionId)) return false
 
-    const wakes = state.wakes.filter(wake => wake.at <= now && (!quiet || wake.throughQuiet))
+    // A wake-up for work that can wait waits out a peak, as everything but the user's own does with quiet hours.
+    const peak = this.deps.inPeak?.(now) === true
+    const wakes = state.wakes.filter(wake => wake.at <= now && (!quiet || wake.throughQuiet) && !(peak && wake.offPeak === true))
     if (quiet && wakes.length === 0) return false
 
     const file = quiet ? undefined : this.deps.read(join(cwd, CALENDAR_FILE))
@@ -446,5 +444,5 @@ export class Heartbeat {
 /** @returns whether today's brief time has come, when a brief is set at all. */
 function briefPassed(settings: AssistantSettings, time: string): boolean {
   const target = settings.dailyBriefTime.trim()
-  return TIME.test(target) && time >= target
+  return CLOCK_TIME.test(target) && time >= target
 }

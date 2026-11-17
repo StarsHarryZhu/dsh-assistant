@@ -10,6 +10,7 @@ import { PLUGIN_ID } from '../shared/settings.ts'
 import type { AssistantSettings, Person, WorkerModel } from '../shared/settings.ts'
 import type { BalanceState } from './balance.ts'
 import type { WakeRequest } from './heartbeat.ts'
+import type { PeakWindow } from '../shared/peak.ts'
 import type { HostNoteLike, SessionControllerLike, SessionLike, SettingsLike } from './types.ts'
 
 /** The settings every assistant shares, as plain values. Each assistant's own are on its assistant list entry. */
@@ -24,6 +25,10 @@ export interface SharedSettings {
   readonly personaCooldownHours: number
   readonly personaMaxChars: number
   readonly profileMaxChars: number
+  /** Whether work that can wait waits for DeepSeek's off-peak hours. */
+  readonly offPeakWork: boolean
+  /** DeepSeek's peak hours, Beijing time, Monday to Friday: `HH:MM-HH:MM`, comma separated; empty for none. */
+  readonly peakHours: string
 }
 
 /**
@@ -110,6 +115,8 @@ export interface AssistantService {
   wakes(person: Person): readonly WakeRequest[]
   addWake(person: Person, wake: Omit<WakeRequest, 'id'>): WakeRequest | undefined
   cancelWakes(person: Person, match: string): WakeRequest[]
+  /** DeepSeek's peak hours while work that can wait is to wait for off-peak hours; undefined while it is not. */
+  peakWindows(): readonly PeakWindow[] | undefined
   /** Change an assistant's own settings; a field set to undefined goes back to its default. */
   updateSettings(personId: string, patch: { readonly [K in keyof AssistantSettings]?: AssistantSettings[K] | undefined }): Promise<void>
 }

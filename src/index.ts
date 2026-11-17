@@ -24,6 +24,7 @@ import type { Context, Volatile } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { ASSISTANT_DEFAULTS, COMPACT_RATIO_RANGE, DEFAULTS, DEFAULT_WORKER_MODELS, MAX_BALANCE_CHECK_MINUTES, PLUGIN_ID, PRESET_ID, WORKER_PRESET_ID, assistantSettings, readPeople, readWorkerModels, readWechatRequest, readWechatStates } from './shared/settings.ts'
 import type { Person, WechatState, WorkerModel } from './shared/settings.ts'
+import { parsePeakHours, peakSpanAt } from './shared/peak.ts'
 import { queryBalance } from './host/balance.ts'
 import type { BalanceState } from './host/balance.ts'
 import { pruneOldFiles, wechatFolder } from './host/inbox.ts'
@@ -71,6 +72,8 @@ export interface Config {
   personaCooldownHours: Volatile<number>
   personaMaxChars: Volatile<number>
   profileMaxChars: Volatile<number>
+  offPeakWork: Volatile<boolean>
+  peakHours: Volatile<string>
   people: Volatile<unknown[]>
   wechatRequest: Volatile<unknown>
   wechatState: Volatile<Record<string, unknown>>
@@ -95,6 +98,10 @@ export const Config: z<Config> = z.object({
     .description('Longest persona.md the assistant keeps').volatile(),
   profileMaxChars: z.natural().min(500).default(DEFAULTS.profileMaxChars)
     .description('Longest profile.md the assistant keeps').volatile(),
+  offPeakWork: z.boolean().default(DEFAULTS.offPeakWork)
+    .description('Work that can wait waits for DeepSeek\'s off-peak hours').volatile(),
+  peakHours: z.string().default(DEFAULTS.peakHours)
+    .description('DeepSeek\'s peak hours, Beijing time, Monday to Friday: HH:MM-HH:MM, comma separated').volatile(),
   people: z.array(z.any()).default([]).description('The assistant list (managed by the assistant page)').volatile(),
   wechatRequest: z.any().description('The assistant page\'s latest WeChat request').volatile(),
   wechatState: z.dict(z.any()).default({}).description('WeChat binding states (written by the host)').volatile(),
@@ -153,7 +160,14 @@ export function readSettings(config: Partial<Config> | undefined): SharedSetting
     personaCooldownHours: numberOr(live(config?.personaCooldownHours), DEFAULTS.personaCooldownHours, 0),
     personaMaxChars: numberOr(live(config?.personaMaxChars), DEFAULTS.personaMaxChars, 200),
     profileMaxChars: numberOr(live(config?.profileMaxChars), DEFAULTS.profileMaxChars, 500),
+    offPeakWork: booleanOr(live(config?.offPeakWork), DEFAULTS.offPeakWork),
+    peakHours: peakHoursOr(live(config?.peakHours), DEFAULTS.peakHours),
   }
+}
+
+/** @returns peak hours as the setting holds them (empty for none), else the fallback. */
+function peakHoursOr(value: unknown, fallback: string): string {
+  return typeof value === 'string' && parsePeakHours(value) !== undefined ? value.trim() : fallback
 }
 
 /** @returns this plugin's data folder under the DSH home. */
@@ -173,6 +187,8 @@ export function apply(ctx: Context, config: Config): void {
   const background = (label: string, work: () => unknown): void => { guarded(warn, label, work)() }
   const settings = (): SharedSettings => readSettings(config)
   const storedPeople = (): Person[] => readPeople(live(config?.people))
+  /** The stored binding states, a fresh copy each time. */
+  const wechatStates = (): Record<string, WechatState> => readWechatStates(live(config?.wechatState))
   const writer = new SettingsWriter(() => host.get('settings'), PLUGIN_ID, warn, run => outsideTransactions(host.get('hmr'))(run))
 
   let people = storedPeople()
@@ -193,7 +209,7 @@ export function apply(ctx: Context, config: Config): void {
     (cwd === undefined ? undefined : readProfileZone(readText(join(cwd, PROFILE_FILE)))) ?? processZone()
   const chatConnected = (person: Person): boolean =>
     assistantSettings(person).wechatEnabled
-    && readWechatStates(live(config?.wechatState))[person.id]?.status === 'bound'
+    && wechatStates()[person.id]?.status === 'bound'
     && typeof host.get('imRobot')?.route === 'function'
 
   const refreshBalance = async (): Promise<BalanceState> => {
@@ -225,6 +241,11 @@ export function apply(ctx: Context, config: Config): void {
       return held ? { status: 'held', until: quiet.end } : { status: 'routed' }
     },
     turnFromUser: sessionId => userTurns.has(sessionId),
+    peakWindows: () => {
+      const { offPeakWork, peakHours } = settings()
+      const windows = offPeakWork ? parsePeakHours(peakHours) : undefined
+      return windows === undefined || windows.length === 0 ? undefined : windows
+    },
     wakes: person => heartbeat.wakes(person.id),
     addWake: (person, wake) => heartbeat.addWake(person.id, wake),
     cancelWakes: (person, match) => heartbeat.cancelWakes(person.id, match),
@@ -303,7 +324,7 @@ export function apply(ctx: Context, config: Config): void {
 
   // ---- WeChat ----
   const writeState = (personId: string, state: WechatState | null): Promise<void> => writer.write(() => {
-    const states = { ...readWechatStates(live(config?.wechatState)) }
+    const states = wechatStates()
     if (state === null) {
       if (!(personId in states)) return undefined
       delete states[personId]
@@ -316,7 +337,7 @@ export function apply(ctx: Context, config: Config): void {
     robot: () => host.get('imRobot'),
     people: () => people,
     writeState,
-    readState: personId => readWechatStates(live(config?.wechatState))[personId],
+    readState: personId => wechatStates()[personId],
     warn,
     bound: (personId, sessionId) => {
       const person = people.find(entry => entry.id === personId)
@@ -339,7 +360,7 @@ export function apply(ctx: Context, config: Config): void {
   /** Give each bound account its assistant's options; an account not logged in has none to change. */
   const pushRobotOptions = (): void => {
     const robot = host.get('imRobot')
-    const states = readWechatStates(live(config?.wechatState))
+    const states = wechatStates()
     for (const person of people) {
       if (states[person.id]?.status !== 'bound') continue
       background('WeChat options', () => robot?.setBindingOptions?.(person.id, robotOptions(person)))
@@ -351,7 +372,7 @@ export function apply(ctx: Context, config: Config): void {
 
   // A QR code or a scan in progress cannot survive a restart.
   background('QR code expiry', () => writer.write(() => {
-    const states = readWechatStates(live(config?.wechatState))
+    const states = wechatStates()
     let changed = false
     for (const [personId, state] of Object.entries(states)) {
       if (state.status !== 'qr' && state.status !== 'scanned') continue
@@ -428,6 +449,10 @@ export function apply(ctx: Context, config: Config): void {
       const robot = host.get('imRobot')
       if (robot?.send === undefined) throw new Error('im-robot cannot send')
       robot.send(person.id, text)
+    },
+    inPeak: (at) => {
+      const windows = service.peakWindows()
+      return windows !== undefined && peakSpanAt(windows, at) !== undefined
     },
     warn,
     directory: join(dataDirectory(), 'heartbeat'),

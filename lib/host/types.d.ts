@@ -330,5 +330,3 @@ export interface SessionTitleLike {
         readonly title: string;
     };
 }
-/** The global tools the assistant agents keep: complete-subagent's six. */
-export declare const ALLOWED_GLOBAL_TOOLS: readonly string[];

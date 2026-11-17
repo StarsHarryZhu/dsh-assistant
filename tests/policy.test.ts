@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { ALLOWED_TOOLS, SECTION, apply, balanceText, channelText, heartbeatContext, permissionText, settleSections } from '../src/policy.ts'
+import { parsePeakHours } from '../src/shared/peak.ts'
 import { apply as applyCompactor, due } from '../src/compactor.ts'
 import type { SharedSettings } from '../src/host/service.ts'
 import type { SandboxMode } from '../src/shared/settings.ts'
@@ -41,7 +42,7 @@ describe('the router policy', () => {
     expect(sections.map(section => section.name)).toEqual([SECTION.router])
     expect(sections[0]?.text).toContain('records yourself, everything else to workers')
     expect(contexts.map(context => context.name)).toEqual([
-      'dsh-assisstant:calendar', 'dsh-assisstant:workspace', 'dsh-assisstant:schedule', 'dsh-assisstant:balance', 'dsh-assisstant:channel', 'dsh-assisstant:permission', 'dsh-assisstant:heartbeat',
+      'dsh-assisstant:calendar', 'dsh-assisstant:workspace', 'dsh-assisstant:schedule', 'dsh-assisstant:balance', 'dsh-assisstant:channel', 'dsh-assisstant:permission', 'dsh-assisstant:off-peak', 'dsh-assisstant:heartbeat',
     ])
     expect(tools.scoped.map(tool => tool.name).sort()).toEqual(['balance_check', 'brief_set', 'calendar_add', 'calendar_update', 'im_route', 'list_update', 'log_add', 'media_copy', 'memo_set', 'persona_set', 'profile_set', 'project_update', 'quiet_set', 'recall', 'wake_after', 'wake_cancel'])
     expect(commands.map(command => command.name)).toEqual(['ddl'])
@@ -155,6 +156,16 @@ describe('the router policy', () => {
     process.off('uncaughtException', onError)
     expect(uncaught).toEqual([])
     expect(ctx.warnings.join('\n')).toContain('pin broke')
+  })
+
+  it('tells the conversation DeepSeek\'s peak hours only while work waits for off-peak hours', () => {
+    const { contexts, service } = mount('router')
+    const context = contexts.find(entry => entry.name === 'dsh-assisstant:off-peak')
+    const agent = fakeAgent(fakeSession('r1'))
+    expect(context?.text({ agent })).toBe('')
+    service.peakWindows = () => parsePeakHours('09:00-12:00,14:00-18:00')
+    expect(context?.text({ agent })).toContain('# DeepSeek peak hours')
+    expect(context?.text({ agent })).toContain('Follow "Off-peak work" in your instructions.')
   })
 
   it('registers the record tools in the preset\'s scope, never as global tools', () => {

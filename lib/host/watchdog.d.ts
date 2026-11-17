@@ -31,7 +31,9 @@ export declare class Watchdog {
     private readonly sessions;
     constructor(deps: WatchdogDeps);
     /**
-     * Record one session event.
+     * Record one session event. A worker is tracked only from a turn's start to
+     * its end: outside a turn it has nothing to stall, and an assistant starts a
+     * new one for every errand, so keeping them would grow without end.
      * @param sessionId - the session.
      * @param role - its layer.
      * @param router - the assistant conversation it belongs to (itself for a router).
@@ -44,7 +46,7 @@ export declare class Watchdog {
      * @returns the router of a known session, else the id itself.
      */
     routerOf(sessionId: string): string;
-    /** Forget a session (removed person, ended worker). */
+    /** Forget a session (a removed assistant's conversation). */
     forget(sessionId: string): void;
     /**
      * Act on every stall.

@@ -48,10 +48,33 @@ describe('silent turns', () => {
     expect(marked(root)).toEqual(['88:turn-trigger', '88:turn-process', '88:model-retry', '88:assistant-step', '88:assistant-step', '88:turn-tail'])
   })
 
+  it('include a worker\'s report answered with the silent reply, context rows such as the clock included', () => {
+    const root = rows([
+      ['turn-trigger', '11'], ['turn-process', '11'], ['assistant-step', '11', '[silent]'], ['context', '11'], ['assistant-step', '11', '[silent]'], ['turn-tail', '11'],
+      ['turn-trigger', '13'], ['turn-process', '13'], ['tool-call', '13'], ['context', '13'], ['assistant-step', '13', '小帮手查到了你要的票价。'], ['turn-tail', '13'],
+    ])
+    markSilentTurns(root)
+    expect(marked(root)).toEqual(['11:turn-trigger', '11:turn-process', '11:assistant-step', '11:context', '11:assistant-step', '11:turn-tail'])
+  })
+
   it('include the oldest turn on screen, whose trigger row is above the loaded page', () => {
     const root = rows([['turn-process', '81'], ['assistant-step', '81'], ['assistant-step', '81', '[silent]'], ['turn-tail', '81'], ['user', '82'], ['turn-process', '82'], ['assistant-step', '82', '好的'], ['turn-tail', '82']])
     markSilentTurns(root)
     expect(marked(root)).toEqual(['81:turn-process', '81:assistant-step', '81:assistant-step', '81:turn-tail'])
+  })
+
+  it('include a silent answer as 0.2.1-rc.5 draws it: an answer row holding the text with no reply body', () => {
+    const root = rows([['turn-trigger', '21'], ['turn-process', '21'], ['turn-tail', '21'], ['turn-trigger', '22'], ['turn-process', '22'], ['turn-tail', '22']])
+    for (const [turn, text] of [['21', ' [silent] '], ['22', '到点了，该喝水啦。']]) {
+      const answer = document.createElement('div')
+      answer.setAttribute('data-chat-flow-kind', 'assistant-step')
+      answer.setAttribute('data-chat-turn', turn)
+      answer.setAttribute('data-turn-process-answer', 'true')
+      answer.textContent = text
+      root.querySelector(`[data-chat-turn='${turn}'][data-chat-flow-kind='turn-tail']`)!.before(answer)
+    }
+    markSilentTurns(root)
+    expect(marked(root)).toEqual(['21:turn-trigger', '21:turn-process', '21:assistant-step', '21:turn-tail'])
   })
 
   it('keep a heartbeat\'s reminder in view', () => {

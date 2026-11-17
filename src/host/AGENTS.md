@@ -2,12 +2,12 @@
 
 ## 1. Role
 
-Host-side modules the entry plugins share, and the two prompts. Each module owns one concern and takes its services as arguments, so the specs drive it with fakes: the calendar and the time-zone projection, the `ddl.md` fast path, the workspace context, the balance, preset hiding, the tool fence, the assistant list planning, the record tools, the assistant conversation's own tools, the WeChat link, the conversation title, the watchdog, the heartbeat, and quiet hours. The prompts are copied next to the emitted modules by the build.
+Host-side modules the entry plugins share, and the two prompts. Each module owns one concern and takes its services as arguments, so the specs drive it with fakes: the calendar and the time-zone projection, the `ddl.md` fast path, the workspace context, the balance, preset hiding, the tool fence, the assistant list planning, the record tools, the assistant conversation's own tools, the WeChat link, the conversation title, the watchdog, the heartbeat, quiet hours, and DeepSeek's off-peak hours. The prompts are copied next to the emitted modules by the build.
 
 ## 2. Constraints
 
 - No module reads cordis context directly; the entries wire services in.
-- Every host call must exist on the oldest host in `engines.dsh`, 0.2.1-rc.5: a spec's fake proves nothing about that. Methods added later go through a fallback (`compat.ts`), and a missing one is reported, not ignored.
+- Every host call must exist on the oldest host in `engines.dsh`, 0.2.1-rc.5 (raised to 0.2.2-rc.1 on 2026-11-15 for the mail agents of that time and lowered again on 2026-11-16 once they were gone): a spec's fake proves nothing about that. Methods added later go through a fallback (`compat.ts`), and a missing one is reported, not ignored.
 - Nothing this package hangs on a host event, timer, or microtask may let an error escape (`guarded` in `service.ts`): many fire for every session of the host, and one escaping once made every conversation unusable.
 - The fast path never calls a model: anything that can be decided by parsing files is decided here. A heartbeat with nothing due reaches the model only because the user chose that (`heartbeatIdleWake`, on by default).
 - Nothing here uses the host's automation tasks (`ctx.schedule`) any more, except to remove what earlier versions left there. Everything timed comes from the heartbeat, which reads `ddl.md` afresh each minute, so an item has no second record to keep in step.
@@ -20,14 +20,17 @@ Host-side modules the entry plugins share, and the two prompts. Each module owns
 - The prompts are complete: the router prompt is the assistant conversation's whole system prompt, the worker prompt a worker's. `tests/workflow.test.ts` pins the rules the design depends on (conversation norms, outside content as data, the report format).
 - The worker's report (in English: the status line, the result, at most one question for the user) and the router's handling of it change together.
 - The router writes only through the record tools in `records/`; it has no general file write, shell, or web.
+- DeepSeek's peak hours (`offPeakWork`, `peakHours`, shared settings) hold back only work that can wait: wake-ups the router set with `off_peak`, which the heartbeat fires only once the peak is over. The router's context names the peak hours in the user's time (`off-peak.ts`) and its prompt's "Off-peak work" says what may wait. Chinese public holidays are not tracked: one only makes work wait a few hours longer than it had to.
 - The access rules in `router.md` promise only what works: the router cannot grant outside the workspace on any host, and on 0.2.1-rc.5 a grant does not reach a worker's shell. End-to-end checks of file access need a workspace outside `/tmp`, which is always writable.
+- Zone time has one home, `calendar.ts`: no other module builds an `Intl.DateTimeFormat` for a local time, tests `HH:MM` with its own pattern, or adds days to a date by hand. Its formatters are cached per zone.
+- Nothing kept per session may outlive the session: workers come and go by the hundred, so what is remembered about one is dropped when its turn ends (`watchdog.ts`) or held weakly by its agent (the clock readings in `policy.ts`).
 
 ## 3. Contents
 
 - `types.ts` — structural mirrors of the host services, and the allowlist of complete-subagent tools.
 - `service.ts` — the `dshAssisstant` service interface, the shared settings' shape, the serialized settings writer, the listener guard, and the host-note sender.
-- `calendar.ts` — the calendar context, the clock line, and the week window (ported from assistant-mode).
-- `ddl.ts` — parses `ddl.md`, including repeating items, renders the week view and today's items in a zone, and converts local time to UTC.
+- `calendar.ts` — time in the user's zone: the shared primitives (an instant's local date and time, a local time's instant, date arithmetic, the `HH:MM` shape), the calendar context, the clock line, and the week window (ported from assistant-mode).
+- `ddl.ts` — parses `ddl.md`, including repeating items, and renders the week view and today's items in a zone.
 - `workspace.ts` — the workspace context: the assistant's name and form of address, profile, persona with its cooldown, project list.
 - `balance.ts` — the RMB balance for each provider and the reminder text.
 - `hide-preset.ts` — hides preset ids from the registry's `list()`.
@@ -36,15 +39,16 @@ Host-side modules the entry plugins share, and the two prompts. Each module owns
 - `records` — the record tools and the file formats behind them.
 - `people.ts` — which assistants need a conversation, merges of the host's write-back, a new assistant's greeting, and its introduction on WeChat.
 - `wechat-link.ts` — runs the page's WeChat requests against the im-robot service (bind, unbind, cancel, reconnect, diagnose, options) and mirrors its status events into the stored state.
+- `off-peak.ts` — the router's context on DeepSeek's peak hours, in the user's time.
 - `title.ts` — keeps each assistant conversation titled with its assistant's name.
-- `watchdog.ts` — stops stalled turns and reports quiet workers, by each assistant's own limit.
-- `heartbeat.ts` — wakes each assistant for its daily brief, reminders, its own wake-ups, and its heartbeat; asks the user to write on WeChat before it stops taking the assistant's messages.
+- `watchdog.ts` — stops stalled turns and reports quiet workers, by each assistant's own limit; a worker is tracked only while its turn runs.
+- `heartbeat.ts` — wakes each assistant for its daily brief, reminders, its own wake-ups (those set for off-peak hours once the peak is over), and its heartbeat; asks the user to write on WeChat before it stops taking the assistant's messages.
 - `quiet.ts` — the daily and temporary quiet hours, where a reminder goes when it falls inside them, and when to ask the user to keep WeChat open.
 - `assistant-tools.ts` — the router's own tools: `im_route`, `wake_after`, `wake_cancel`, `quiet_set`, `brief_set`, `media_copy`.
 - `inbox.ts` — the chat inbox `IM/`: its folders, the daily clean-up, and copying a file out.
 - `outbound.ts` — the files a reply sends to the chat app: the workspace check and their names for the model.
-- `router.md` — the assistant conversation's prompt: records versus delegation, what goes where, when to speak, worker reports, access review, outside content as data, heartbeats, quiet hours, the time zone, files from WeChat, and reaching the user.
-- `worker.md` — the workers' prompt: outside content as data, the fixed report, the record tools.
+- `router.md` — the assistant conversation's prompt: records versus delegation, what goes where, when to speak, worker reports, access review, outside content as data, heartbeats, quiet hours, the time zone, files from WeChat, off-peak work, and reaching the user.
+- `worker.md` — the workers' prompt: outside content as data, the fixed report, and the record tools.
 
 ## 4. Progress
 
@@ -60,5 +64,8 @@ Host-side modules the entry plugins share, and the two prompts. Each module owns
 - Done (2026-11-06, user request): `im_route` replaces `im_send`; WeChat files land in `IM/WeChat/`, are cleared after `wechatMediaDays`, and are copied out with `media_copy` instead of moved out of `temp/`; the heartbeat no longer holds chat messages, since im-robot holds a routed reply until quiet hours end.
 - Done (2026-11-07, user request, after the daily brief missed WeChat 33 hours after the user's last message there): the heartbeat asks the user on WeChat to write once before WeChat stops taking the assistant's messages, before quiet hours when it would stop in or soon after them; im-robot keeps what was refused until the user writes again.
 - Done (2026-11-10, user request): `im_route` sends workspace files with the reply (`files`), through im-robot 0.3.0, which shows them in WeChat as pictures, videos, or files to open; voice cannot be sent.
+- Done (2026-11-15, user request): work that can wait waits for DeepSeek's off-peak hours: the router's context and prompt, `wake_after` with `off_peak`, and the heartbeat holding such wake-ups through the peak.
+- Removed (2026-11-16, user request): reading mail (`mail-link.ts`, `mail-tools.ts`), the mail agents (`mail-agents.ts`) and their quiet reports (`quiet-reports.ts`), and the email parts of both prompts, built on 2026-11-15 and taken out after a short pause behind a hidden switch.
 - Open: tune both prompts after more real conversations; the heartbeat, time zone, and quiet-hours rules met the real model on Desktop 0.2.2-rc.1, while routing to WeChat and media have not.
+- Done (2026-11-17, user request to refactor): the zone primitives moved from `ddl.ts` into `calendar.ts`, replacing three copies of the `HH:MM` pattern, three of the date, weekday, and time text, and four hand-written date additions, with one cached formatter per zone (about a seventh of the cost of building one per call); the tools' call card has one definition, in `records/tools.ts`; the unused `ALLOWED_GLOBAL_TOOLS` and `WECHAT_FOLDER` are gone. Fixed on the way: the watchdog kept every worker it had ever seen and walked them all each minute.
 - Goal later: nothing planned.

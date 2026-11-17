@@ -60,23 +60,6 @@ export declare function repeatsOn(rule: RepeatRule, iso: string): boolean;
  * @returns every well-formed entry in file order; other lines are skipped.
  */
 export declare function parseDdl(text: string): DdlEntry[];
-/** One instant in a zone. */
-interface LocalTime {
-    readonly iso: string;
-    readonly short: string;
-    readonly time: string;
-}
-/** @returns the zone's date and 24-hour time at that instant. */
-export declare function local(ms: number, zone: string): LocalTime;
-/**
- * The instant of a local date and time. A time a clock change repeats reads as
- * the earlier one; a time it skips moves forward by the gap.
- * @param date - "YYYY-MM-DD".
- * @param time - "HH:MM".
- * @param zone - an IANA zone.
- * @returns epoch milliseconds.
- */
-export declare function zonedToUtc(date: string, time: string, zone: string): number;
 /**
  * The plain-text week view `/ddl` shows: one block per day, then undated
  * items, items done this week, and how many open items come later.
@@ -109,4 +92,3 @@ export declare function describeEntry(entry: DdlEntry, zone: string): string;
  * @returns one label per item, empty when today is free.
  */
 export declare function todayItems(entries: readonly DdlEntry[], now: Date, zone: string): string[];
-export {};

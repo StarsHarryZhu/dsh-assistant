@@ -194,8 +194,8 @@ function ModelSettings(props: { directory: ModelDirectoryLike; t: Translate }): 
   )
 }
 
-/** What the assistant's workers may change; full access asks first. */
-function PermissionSetting(props: { view: AssistantsView; person: Person; form: ConfigFormLike; t: Translate }): ReactNode {
+/** What the assistant's workers may change; full access asks first. Also on the assistant's settings tab. */
+export function PermissionSetting(props: { view: AssistantsView; person: Person; form: ConfigFormLike; t: Translate }): ReactNode {
   const { view, person, form, t } = props
   const mode = assistantSettings(person).sandboxMode
   const [confirming, setConfirming] = useState(false)

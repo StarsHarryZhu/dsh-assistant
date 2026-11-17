@@ -15,7 +15,7 @@
  * @module dsh-assisstant/host/ddl
  */
 
-import { localDays, weekdayOf } from './calendar.ts'
+import { local, localDays, weekdayOf, zonedToUtc } from './calendar.ts'
 import type { LocalDay } from './calendar.ts'
 
 /** How an item repeats. Weekdays are ISO: Monday 1 through Sunday 7. */
@@ -139,51 +139,6 @@ export function parseDdl(text: string): DdlEntry[] {
     entries.push({ done, start, ...(end === undefined ? {} : { end }), kind: kind.trim(), title })
   }
   return entries
-}
-
-/** One instant in a zone. */
-interface LocalTime {
-  readonly iso: string
-  readonly short: string
-  readonly time: string
-}
-
-/** @returns the zone's date and 24-hour time at that instant. */
-export function local(ms: number, zone: string): LocalTime {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
-    timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-  }).formatToParts(new Date(ms)).map(part => [part.type, part.value]))
-  return { iso: `${parts.year}-${parts.month}-${parts.day}`, short: `${parts.month}/${parts.day}`, time: `${parts.hour}:${parts.minute}` }
-}
-
-/** @returns the zone's offset from UTC at that instant, in milliseconds. */
-function offsetAt(ms: number, zone: string): number {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
-    timeZone: zone, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', hourCycle: 'h23',
-  }).formatToParts(new Date(ms)).map(part => [part.type, Number(part.value)]))
-  const wall = Date.UTC(parts.year as number, (parts.month as number) - 1, parts.day as number, parts.hour as number, parts.minute as number)
-  return wall - Math.floor(ms / 60_000) * 60_000
-}
-
-/**
- * The instant of a local date and time. A time a clock change repeats reads as
- * the earlier one; a time it skips moves forward by the gap.
- * @param date - "YYYY-MM-DD".
- * @param time - "HH:MM".
- * @param zone - an IANA zone.
- * @returns epoch milliseconds.
- */
-export function zonedToUtc(date: string, time: string, zone: string): number {
-  const [year, month, day] = date.split('-').map(Number) as [number, number, number]
-  const [hour, minute] = time.split(':').map(Number) as [number, number]
-  const wall = Date.UTC(year, month - 1, day, hour, minute)
-  const before = wall - offsetAt(wall - 86_400_000, zone)
-  const after = wall - offsetAt(wall + 86_400_000, zone)
-  const valid = [before, after].filter((candidate) => {
-    const seen = local(candidate, zone)
-    return seen.iso === date && seen.time === time
-  })
-  return valid.length === 0 ? before : Math.min(...valid)
 }
 
 /** @returns the symbol for a kind. */

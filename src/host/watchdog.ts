@@ -47,15 +47,25 @@ export class Watchdog {
   constructor(private readonly deps: WatchdogDeps) {}
 
   /**
-   * Record one session event.
+   * Record one session event. A worker is tracked only from a turn's start to
+   * its end: outside a turn it has nothing to stall, and an assistant starts a
+   * new one for every errand, so keeping them would grow without end.
    * @param sessionId - the session.
    * @param role - its layer.
    * @param router - the assistant conversation it belongs to (itself for a router).
    * @param type - the event type.
    */
   observe(sessionId: string, role: SessionRole, router: string, type: string): void {
+    const known = this.sessions.get(sessionId)
+    if (role === 'worker') {
+      if (type === 'turn/end') {
+        this.sessions.delete(sessionId)
+        return
+      }
+      if (known === undefined && type !== 'turn/start') return
+    }
     const now = this.deps.now()
-    const tracked = this.sessions.get(sessionId) ?? { role, router, running: false, lastEventAt: now }
+    const tracked = known ?? { role, router, running: false, lastEventAt: now }
     tracked.lastEventAt = now
     if (type === 'turn/start') tracked.running = true
     if (type === 'turn/end') tracked.running = false
@@ -71,7 +81,7 @@ export class Watchdog {
     return this.sessions.get(sessionId)?.router ?? sessionId
   }
 
-  /** Forget a session (removed person, ended worker). */
+  /** Forget a session (a removed assistant's conversation). */
   forget(sessionId: string): void {
     this.sessions.delete(sessionId)
   }

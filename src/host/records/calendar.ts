@@ -5,7 +5,8 @@
  * @module dsh-assisstant/host/records/calendar
  */
 
-import { describeEntry, isAllDay, local, parseDdl, repeatsOn, ruleText, zonedToUtc } from '../ddl.ts'
+import { CLOCK_TIME, addDays, local, zonedToUtc } from '../calendar.ts'
+import { describeEntry, isAllDay, parseDdl, repeatsOn, ruleText } from '../ddl.ts'
 import type { DdlEntry, Repeat, RepeatRule } from '../ddl.ts'
 import { insertInSection, joinLines, linesOf, matching, oneLine } from './text.ts'
 
@@ -36,7 +37,6 @@ const DONE_KEEP_MS = 7 * 86_400_000
 const MAX_CANDIDATES = 10
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/u
-const TIME = /^([01]\d|2[0-3]):[0-5]\d$/u
 const DONE_AT = /（完成 (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z)）\s*$/u
 
 export type RepeatName = RepeatRule['kind']
@@ -86,12 +86,6 @@ function validDate(text: string): boolean {
   return date.getUTCMonth() === month - 1 && date.getUTCDate() === day
 }
 
-/** @returns the date that many days later. */
-function addDays(date: string, days: number): string {
-  const [year, month, day] = date.split('-').map(Number) as [number, number, number]
-  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10)
-}
-
 /** @returns the days from one date to another. */
 function daysBetween(from: string, to: string): number {
   return Math.round((Date.parse(`${to}T00:00Z`) - Date.parse(`${from}T00:00Z`)) / 86_400_000)
@@ -103,7 +97,7 @@ export function invalidTiming(item: Partial<CalendarItem>): string | undefined {
     if (date !== undefined && !validDate(date)) return `The date "${date}" is wrong; write it as YYYY-MM-DD.`
   }
   for (const time of [item.time, item.endTime]) {
-    if (time !== undefined && !TIME.test(time)) return `The time "${time}" is wrong; write it as 24-hour HH:MM.`
+    if (time !== undefined && !CLOCK_TIME.test(time)) return `The time "${time}" is wrong; write it as 24-hour HH:MM.`
   }
   return undefined
 }

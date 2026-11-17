@@ -11,7 +11,7 @@ import * as React from 'react'
 import * as JsxRuntime from 'react/jsx-runtime'
 import * as ReactDom from 'react-dom'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { encode } from '../src/client/qr.tsx'
 import type { PathOp } from '../src/client/host.ts'
 
@@ -195,13 +195,27 @@ describe('the browser half', () => {
     const fake = fakeSessions()
     const { find } = loadClient(form, { uiWorkspace: workspace.uiWorkspace, sessions: fake.sessions })
     const Page = find('main', 'dsh-assisstant')
-    const first = render(<Page />)
-    expect(workspace.opened).toEqual(['s-a1'])
-    first.unmount()
-    fake.show('s-a2')
-    fake.show(undefined)
-    render(<Page />)
-    expect(workspace.opened).toEqual(['s-a1', 's-a2'])
+    vi.useFakeTimers()
+    try {
+      const first = render(<Page />)
+      act(() => { vi.advanceTimersByTime(0) })
+      expect(workspace.opened).toEqual(['s-a1'])
+      // While the page stays up, the host may have drawn it over the conversation: it asks again, a few times.
+      act(() => { vi.advanceTimersByTime(10_000) })
+      expect(workspace.opened.length).toBeGreaterThan(2)
+      expect(new Set(workspace.opened)).toEqual(new Set(['s-a1']))
+      first.unmount()
+      const asked = workspace.opened.length
+      act(() => { vi.advanceTimersByTime(10_000) })
+      expect(workspace.opened).toHaveLength(asked)
+      fake.show('s-a2')
+      fake.show(undefined)
+      render(<Page />)
+      act(() => { vi.advanceTimersByTime(0) })
+      expect(workspace.opened.at(-1)).toBe('s-a2')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('opens a new assistant once its conversation exists, and offers to remove one that never gets one', async () => {
@@ -272,6 +286,22 @@ describe('the browser half', () => {
       { id: 'a1', name: '大福', cwd: '/w', sessionId: 's-a1', settings: { watchdogStallMinutes: 120 } },
       { id: 'a2', name: '小管家', cwd: '/n', sessionId: 's-a2', settings: { watchdogStallMinutes: 5 } },
     ])
+  })
+
+  it('changes the permission from the assistant\'s settings tab too, without saving the rest of the draft', async () => {
+    const person = { id: 'a1', name: '阿福', cwd: '/w', sessionId: 's-a1' }
+    const { form, mutations } = fakeForm({ people: [{ ...person, settings: { watchdogStallMinutes: 5 } }] })
+    const fake = fakeSessions()
+    const { find } = loadClient(form, { sessions: fake.sessions })
+    fake.show('s-a1')
+    const Tab = find('conversation.view', 'dsh-assisstant-settings')
+    render(<Tab sessionId="s-a1" />)
+    expect(screen.getByRole('heading', { name: '权限' })).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('多少分钟没有进展就自动停下'), { target: { value: '30' } })
+    await act(async () => { fireEvent.change(screen.getByDisplayValue('工作区写入'), { target: { value: 'read-only' } }) })
+    expect((mutations.at(-1)?.ops[0] as { value: unknown[] }).value).toEqual([{ ...person, settings: { watchdogStallMinutes: 5, sandboxMode: 'read-only' } }])
+    await act(async () => { fireEvent.click(screen.getByText('保存')) })
+    expect((mutations.at(-1)?.ops[0] as { value: unknown[] }).value).toEqual([{ ...person, settings: { watchdogStallMinutes: 30, sandboxMode: 'read-only' } }])
   })
 
   it('deletes an assistant from its settings tab after an inline confirmation, and leaves its conversation', async () => {
@@ -650,8 +680,31 @@ describe('the browser half', () => {
     const { find } = loadClient(form)
     const Settings = find('plugins.bundle.config', '@starsharryzhu/dsh-assistant')
     render(<div><Settings view="page" /></div>)
-    for (const title of ['模型', '自动整理对话', '余额提醒', '人设与画像']) expect(screen.getByText(title)).toBeTruthy()
+    for (const title of ['模型', '自动整理对话', '余额提醒', '人设与画像', 'DeepSeek 谷价']) expect(screen.getByText(title)).toBeTruthy()
     for (const title of ['工作区', '日程与主动提醒', '看门狗', '微信', '对话用的模型']) expect(screen.queryByText(title)).toBeNull()
+  })
+
+  it('edits the off-peak settings, correcting the peak hours when the field is left', async () => {
+    const { form, mutations } = fakeForm({})
+    const { find } = loadClient(form)
+    const Settings = find('plugins.bundle.config', '@starsharryzhu/dsh-assistant')
+    render(<div><Settings view="page" /></div>)
+    const hours = screen.getByLabelText(/^DeepSeek 高峰时段/u) as HTMLInputElement
+    expect(hours.value).toBe('09:00-12:00,14:00-18:00')
+    fireEvent.change(hours, { target: { value: '14:00-18:00，9:00-12:00' } })
+    fireEvent.blur(hours)
+    expect(hours.value).toBe('09:00-12:00,14:00-18:00')
+    fireEvent.change(hours, { target: { value: '18:00-14:00' } })
+    fireEvent.blur(hours)
+    expect(hours.value).toBe('09:00-12:00,14:00-18:00')
+    fireEvent.change(hours, { target: { value: '10:30-11:30' } })
+    fireEvent.blur(hours)
+    fireEvent.click(screen.getByLabelText('不赶时间的整理放到 DeepSeek 谷价时段再做'))
+    await act(async () => { fireEvent.click(screen.getByText('保存')) })
+    expect(JSON.stringify(mutations.at(-1))).toContain('"peakHours"')
+    const ops = mutations.at(-1)?.ops as { path: string[]; value: unknown }[]
+    expect(ops.find(op => op.path.at(-1) === 'peakHours')?.value).toBe('10:30-11:30')
+    expect(ops.find(op => op.path.at(-1) === 'offPeakWork')?.value).toBe(false)
   })
 
   it('chooses several worker models, with no way to run none', async () => {

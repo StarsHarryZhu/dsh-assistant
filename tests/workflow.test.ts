@@ -124,7 +124,8 @@ describe('the router prompt', () => {
 
   it('answers every message from the user, a WeChat emoji included, and keeps the silent marker for system notes', () => {
     expect(router).toContain('**Every message from the user gets an answer**')
-    expect(router).toContain('`[silent]` is only for a system note with nothing due, never for something they said or sent')
+    expect(router).toContain('`[silent]` is only for a system note or a worker\'s report with nothing for them, never for something they said or sent')
+    expect(router).toContain('when the report is all the turn holds, reply exactly `[silent]`')
     expect(router).toContain('A turn a message from the user started is never one.')
     expect(router).toContain('**WeChat writes its built-in emoji as their names in brackets**')
     expect(router).toContain('`[Onlooker]`')
@@ -150,5 +151,16 @@ describe('the router prompt', () => {
     expect(router).toContain('[assistant-system]')
     expect(router).toContain('Your own notes are in English')
     expect(router).toContain('Mention the account balance only when a context tells you to')
+  })
+})
+
+describe('the router\'s off-peak rules', () => {
+  it('lets only work that can wait wait for off-peak hours, by waking itself, and keeps prices out of the talk', () => {
+    expect(router).toContain('## Off-peak work')
+    expect(router).toContain('Without that section, do everything at once.')
+    expect(router).toContain('**Cannot wait**: anything they are waiting for or asked for now, recording what they tell you, reminders, the daily brief, answering their messages, and anything due before the peak hours end.')
+    expect(router).toContain('then call `wake_after` with `off_peak` true and the task as the reason. When it wakes you, start the worker.')
+    expect(router).toContain('**When they want it now** (「现在就弄」), do it now.')
+    expect(router).toContain('**Never bring up prices** or peak hours on your own; answer when asked.')
   })
 })

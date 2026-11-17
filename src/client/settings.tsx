@@ -1,23 +1,25 @@
 /**
  * The settings pages, laid out alike: the settings every assistant shares on
  * the Plugins screen (worker models, compaction, the balance reminder, persona
- * and profile limits), and each assistant's own in its conversation's settings
- * tab (its name and form of address, schedule, heartbeat, quiet hours, watchdog,
- * WeChat, and removing it). Each saves through the host's settings form of the row.
+ * and profile limits, and DeepSeek's peak hours), and each assistant's own in its conversation's settings
+ * tab (its name and form of address, its permission, schedule, heartbeat, quiet
+ * hours, watchdog, WeChat, and removing it). Each saves through the host's settings form of the row.
  * @module dsh-assisstant/client/settings
  */
 
 import { useEffect, useState, type ReactNode } from 'react'
 import { ASSISTANT_DEFAULTS, COMPACT_RATIO_RANGE, DEFAULTS, MAX_BALANCE_CHECK_MINUTES, MAX_HEARTBEAT_MINUTES, MIN_HEARTBEAT_MINUTES, MAX_WECHAT_MEDIA_DAYS, MIN_WATCHDOG_MINUTES, MIN_WECHAT_REPLY_CHARS, assistantSettings, readWorkerModels } from '../shared/settings.ts'
 import type { AssistantSettings, Person, WorkerModel } from '../shared/settings.ts'
+import { formatPeakHours, parsePeakHours } from '../shared/peak.ts'
 import { assistantsView, clearTemporaryQuiet, removePerson, updateAssistant, useForm } from './assistants.ts'
 import type { AssistantsView } from './assistants.ts'
 import type { CatalogGroup, ConfigFormLike, PathOp, RemoteSessionLike, Translate, UiWorkspaceLike } from './host.ts'
 import { fallbackT } from './locales.ts'
+import { PermissionSetting } from './im.tsx'
 import { Dropdown } from './menu.tsx'
 
 /** How one field is edited. */
-type FieldKind = 'text' | 'textarea' | 'number' | 'percent' | 'boolean' | 'time'
+type FieldKind = 'text' | 'textarea' | 'number' | 'percent' | 'boolean' | 'time' | 'hours'
 
 /** One editable setting. */
 interface Field {
@@ -42,9 +44,11 @@ export const FIELDS: readonly Field[] = [
   { key: 'personaCooldownHours', kind: 'number', group: 'persona', min: 0 },
   { key: 'personaMaxChars', kind: 'number', group: 'persona', min: 200 },
   { key: 'profileMaxChars', kind: 'number', group: 'persona', min: 500 },
+  { key: 'offPeakWork', kind: 'boolean', group: 'offPeak' },
+  { key: 'peakHours', kind: 'hours', group: 'offPeak' },
 ]
 
-const GROUPS = ['model', 'compact', 'balance', 'persona']
+const GROUPS = ['model', 'compact', 'balance', 'persona', 'offPeak']
 
 /** The settings each assistant has for itself, in display order. */
 export const ASSISTANT_FIELDS: readonly Field[] = [
@@ -207,9 +211,13 @@ export function createAssistantSettings(deps: AssistantSettingsDeps) {
   }
 }
 
+/** Settings saved on their own elsewhere (the permission picker), so the draft never holds them. */
+const SAVED_ELSEWHERE: ReadonlySet<string> = new Set(['sandboxMode'])
+
 /** @returns the stored name, form of address, and settings of one assistant, as the draft edits them. */
 function assistantDraft(person: Person): Record<string, Value> {
-  return { name: person.name, address: person.address ?? '', ...assistantSettings(person) }
+  const settings = Object.entries(assistantSettings(person)).filter(([key]) => !SAVED_ELSEWHERE.has(key))
+  return { name: person.name, address: person.address ?? '', ...Object.fromEntries(settings) }
 }
 
 function AssistantPage(props: { view: AssistantsView; person: Person; deps: AssistantSettingsDeps; t: Translate }): ReactNode {
@@ -227,7 +235,8 @@ function AssistantPage(props: { view: AssistantsView; person: Person; deps: Assi
   }
   const save = async (): Promise<void> => {
     setStatus('saving')
-    const settings = Object.fromEntries(Object.keys(ASSISTANT_DEFAULTS).map(key => [key, draft[key]])) as unknown as AssistantSettings
+    const current = assistantSettings(person) as unknown as Record<string, Value>
+    const settings = Object.fromEntries(Object.keys(ASSISTANT_DEFAULTS).map(key => [key, SAVED_ELSEWHERE.has(key) ? current[key] : draft[key]])) as unknown as AssistantSettings
     setStatus(await updateAssistant(deps.form, view, person.id, { name: String(draft.name), address: String(draft.address) }, settings) ? 'saved' : 'failed')
   }
   const remove = async (): Promise<void> => {
@@ -258,6 +267,10 @@ function AssistantPage(props: { view: AssistantsView; person: Person; deps: Assi
           <span>{t('form.folder')}</span>
           <input className="dsa-text" value={person.cwd ?? ''} title={person.cwd} disabled />
         </label>
+      </section>
+      <section className="dsa-group">
+        <h3>{t('settings.group.permission')}</h3>
+        <PermissionSetting view={view} person={person} form={deps.form} t={t} />
       </section>
       {ASSISTANT_GROUPS.map(group => (
         <section key={group} className="dsa-group">
@@ -362,6 +375,12 @@ function correctedNumber(text: string, field: Field, fallback: string): string {
   return String(Math.min(field.max ?? Infinity, Math.max(field.min ?? -Infinity, rounded)))
 }
 
+/** @returns typed peak hours written the way they are stored, empty for none, or the fallback when they are not peak hours. */
+function correctedHours(text: string, fallback: string): string {
+  const windows = parsePeakHours(text)
+  return windows === undefined ? fallback : formatPeakHours(windows)
+}
+
 /** @returns what a typed clock time becomes: empty stays empty (off), 8, 8:00, and 0800 read as 08:00, and anything else keeps the fallback. */
 function correctedTime(text: string, fallback: string): string {
   const trimmed = text.trim()
@@ -378,7 +397,7 @@ function correctedTime(text: string, fallback: string): string {
  * when the field is left. The draft already holds the corrected value while
  * typing, so the save button is right even before the field is left.
  */
-function CorrectedInput(props: {
+export function CorrectedInput(props: {
   label: string
   value: string
   type: 'number' | 'text'
@@ -440,6 +459,9 @@ function FieldInput(props: { field: Field; value: Value; label: string; onChange
   }
   if (field.kind === 'time') {
     return <CorrectedInput label={props.label} type="text" value={String(value)} correct={correctedTime} onChange={props.onChange} />
+  }
+  if (field.kind === 'hours') {
+    return <CorrectedInput label={props.label} type="text" value={String(value)} correct={correctedHours} onChange={props.onChange} />
   }
   const percent = field.kind === 'percent'
   return (

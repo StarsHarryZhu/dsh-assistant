@@ -7,11 +7,11 @@
  */
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { describeEntry, local } from '../ddl.ts'
+import { describeEntry } from '../ddl.ts'
 import type { DdlEntry } from '../ddl.ts'
 import { recordToolTitle } from '../../shared/record-tools.ts'
 import type { SharedSettings } from '../service.ts'
-import { validZone } from '../calendar.ts'
+import { local, validZone } from '../calendar.ts'
 import { quietSpanAt, remindAt } from '../quiet.ts'
 import type { AssistantSettings } from '../../shared/settings.ts'
 import type { AgentLike } from '../types.ts'
@@ -86,7 +86,7 @@ const TIME_ZONE = {
 } as const
 
 /** @returns a pending-call card with a plain title; the user reads it in the conversation. */
-function card(title: string, kind: 'read' | 'other' = 'other') {
+export function card(title: string, kind: 'read' | 'other' = 'other') {
   return { card: 'generic' as const, title, kind }
 }
 

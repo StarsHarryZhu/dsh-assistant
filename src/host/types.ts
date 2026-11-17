@@ -260,13 +260,3 @@ export interface SessionTitleLike {
   /** Accept a user title, which pins it against automatic titling; the session must be live. */
   rename(session: SessionLike, title: string): { readonly title: string }
 }
-
-/** The global tools the assistant agents keep: complete-subagent's six. */
-export const ALLOWED_GLOBAL_TOOLS: readonly string[] = [
-  'delegate',
-  'delegate_fork',
-  'request_write_access',
-  'answer_write_request',
-  'grant_write_access',
-  'revoke_write_access',
-]

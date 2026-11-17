@@ -24,6 +24,12 @@ export interface RecordToolDeps {
 }
 /** Tools only the assistant conversation has: what it knows about them, and how it talks. */
 export declare const ROUTER_ONLY_TOOLS: readonly string[];
+/** @returns a pending-call card with a plain title; the user reads it in the conversation. */
+export declare function card(title: string, kind?: 'read' | 'other'): {
+    card: "generic";
+    title: string;
+    kind: "read" | "other";
+};
 /**
  * What the reminder of an item will be, for a tool's result: the heartbeat gives
  * it by reading the file, so nothing is set up here.

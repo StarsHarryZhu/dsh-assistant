@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -20,7 +20,7 @@ class Registry extends OldRegistry {
 const mounted: FakeContext[] = []
 afterEach(() => { for (const ctx of mounted.splice(0)) ctx.dispose() })
 
-function setup(initial: Record<string, unknown> = {}, host: { registry?: OldRegistry } = {}) {
+function setup(initial: Record<string, unknown> = {}, host: { registry?: OldRegistry; services?: Record<string, unknown> } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'dsa-plugin-'))
   const store: Record<string, unknown> = { ...initial }
   const config = new Proxy({}, { get: (_target, key: string) => ({ get: () => store[key] }) })
@@ -89,6 +89,7 @@ function setup(initial: Record<string, unknown> = {}, host: { registry?: OldRegi
       list: async ({ sessionId }: { sessionId: string }) => (sessionId === 's-mom' ? [{ id: 'old-1' }, { id: 'old-2' }] : []),
       delete: async ({ sessionId, id }: { sessionId: string; id: string }) => { scheduleCalls.push(`${sessionId}:${id}`) },
     },
+    ...host.services,
   }
   ctx = new FakeContext(services)
   mounted.push(ctx)
@@ -104,6 +105,14 @@ describe('the settings row', () => {
     const { service, registry } = setup()
     expect(service.settings().compactRatio).toBe(0.5)
     expect((await registry.list()).map(row => row.id)).toEqual(['standard'])
+  })
+
+  it('gives DeepSeek\'s peak hours only while work waits for off-peak hours, keeping the default for a malformed value', () => {
+    expect(setup().service.peakWindows()).toEqual([{ start: 540, end: 720 }, { start: 840, end: 1080 }])
+    expect(setup({ peakHours: '20:00-22:00' }).service.peakWindows()).toEqual([{ start: 1200, end: 1320 }])
+    expect(setup({ peakHours: 'soon' }).service.peakWindows()).toEqual([{ start: 540, end: 720 }, { start: 840, end: 1080 }])
+    expect(setup({ peakHours: '' }).service.peakWindows()).toBeUndefined()
+    expect(setup({ offPeakWork: false }).service.peakWindows()).toBeUndefined()
   })
 
   it('creates a conversation for each new assistant in the folder it chose and writes it back', async () => {

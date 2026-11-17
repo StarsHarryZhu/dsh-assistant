@@ -11,11 +11,13 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Person } from '../shared/settings.ts'
 import { assistantSettings } from '../shared/settings.ts'
 import { recordToolTitle } from '../shared/record-tools.ts'
-import { local, zonedToUtc } from './ddl.ts'
+import { offPeakFrom } from '../shared/peak.ts'
+import { local, zonedToUtc } from './calendar.ts'
 import { INBOX_FOLDER, copyFromInbox } from './inbox.ts'
 import { MAX_OUTBOUND_FILES, outboundFiles, workspaceName } from './outbound.ts'
 import { inDailyQuiet, quietSpanAt } from './quiet.ts'
 import { invalidTiming } from './records/calendar.ts'
+import { card } from './records/tools.ts'
 import type { AssistantService } from './service.ts'
 import type { AgentLike } from './types.ts'
 
@@ -24,7 +26,8 @@ const MAX_WAKE_MINUTES = 30 * 24 * 60
 
 const MINUTE_MS = 60_000
 
-const OUTPUT = {
+/** The result shape every assistant tool shares: whether it worked, and plain text for the model. */
+export const OUTPUT = {
   schema: {
     type: 'object',
     additionalProperties: false,
@@ -58,13 +61,18 @@ export interface AssistantToolDeps {
   now?(): number
 }
 
-/** @returns a pending-call card with a plain title; the user reads it in the conversation. */
-function card(title: string) {
-  return { card: 'generic' as const, title, kind: 'other' as const }
+/** What a wake-up is asked for with. */
+interface WakeArgs {
+  readonly reason: string
+  readonly minutes?: number | undefined
+  readonly date?: string | undefined
+  readonly time?: string | undefined
+  readonly through_quiet?: boolean | undefined
+  readonly off_peak?: boolean | undefined
 }
 
 /** @returns the instant a wake-up asks for, or why it cannot be used. */
-function wakeTime(args: { minutes?: number | undefined; date?: string | undefined; time?: string | undefined }, now: number, zone: string): number | string {
+function wakeTime(args: Pick<WakeArgs, 'minutes' | 'date' | 'time'>, now: number, zone: string): number | string {
   if (args.minutes !== undefined) {
     if (!Number.isInteger(args.minutes) || args.minutes < 1) return 'minutes must be a whole number of at least 1.'
     if (args.minutes > MAX_WAKE_MINUTES) return 'A wake-up can be at most 30 days ahead. Longer plans belong in the schedule.'
@@ -100,6 +108,28 @@ export function assistantTools(deps: AssistantToolDeps): unknown[] {
       return await body(person, agent, clock())
     } catch (error) {
       return { ok: false, message: `It did not work: ${String(error)}` }
+    }
+  }
+
+
+  /** A wake-up for work that waits for DeepSeek's off-peak hours. */
+  const wakeOffPeak = (person: Person, now: number, zone: string, args: WakeArgs): Outcome => {
+    const windows = deps.service.peakWindows()
+    if (windows === undefined) return { ok: false, message: 'Waiting for off-peak hours is switched off in the settings: do it now.' }
+    if (args.through_quiet === true) return { ok: false, message: 'off_peak and through_quiet do not go together: off_peak is for work that can wait.' }
+    const asked = args.minutes !== undefined || args.time !== undefined
+    const from = asked ? wakeTime(args, now, zone) : now
+    if (typeof from === 'string') return { ok: false, message: from }
+    const at = offPeakFrom(windows, from)
+    if (!asked && at === now) return { ok: false, message: 'It is off-peak now: do it now instead of waiting.' }
+    const added = deps.service.addWake(person, { at, reason: args.reason.trim(), throughQuiet: false, offPeak: true })
+    if (added === undefined) return { ok: false, message: 'Too many wake-ups are waiting. Cancel some first.' }
+    const span = quietSpanAt(assistantSettings(person), at, zone)
+    return {
+      ok: true,
+      message: span === undefined
+        ? `You will be woken at ${shortTime(at, zone)}${at === from ? '' : ', when DeepSeek\'s peak hours end'}.`
+        : `The end of the peak hours falls in quiet hours, so you will be woken when they end, at ${shortTime(span.end, zone)}, or after the next peak hours if one is on then.`,
     }
   }
 
@@ -148,9 +178,10 @@ export function assistantTools(deps: AssistantToolDeps): unknown[] {
     }),
     defineTool({
       name: 'wake_after',
-      description: 'Wake yourself later, for something with no place in the schedule: "call me in ten minutes", or checking back on something. Things with a time belong in the schedule, which wakes you by itself.',
+      description: 'Wake yourself later, for something with no place in the schedule: "call me in ten minutes", checking back on something, or work that can wait for DeepSeek\'s off-peak hours (off_peak). Things with a time belong in the schedule, which wakes you by itself.',
       parameters: {
         reason: { type: 'string', required: true, description: 'What to do then, in a few words. You read this when you wake.' },
+        off_peak: { type: 'boolean', description: 'true for work that can wait: you are woken once DeepSeek\'s peak hours are over (when they end, without minutes or time; else at the first off-peak moment from then on).' },
         minutes: { type: 'integer', description: 'How many minutes from now.' },
         date: { type: 'string', description: `The date, ${DATE_HINT}, when not today. Use with time, instead of minutes.` },
         time: { type: 'string', description: `The time, ${TIME_HINT}. Use instead of minutes.` },
@@ -161,6 +192,7 @@ export function assistantTools(deps: AssistantToolDeps): unknown[] {
       execute: (args, exec) => run(exec, (person, agent, now) => {
         if (args.reason.trim() === '') return { ok: false, message: 'A wake-up needs a reason.' }
         const zone = deps.zone(agent)
+        if (args.off_peak === true) return wakeOffPeak(person, now, zone, args)
         const at = wakeTime(args, now, zone)
         if (typeof at === 'string') return { ok: false, message: at }
         const throughQuiet = args.through_quiet === true

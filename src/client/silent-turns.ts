@@ -18,18 +18,23 @@ export const SILENT_ATTRIBUTE = 'data-dsa-silent'
  * The rows a turn may hold and still be silent. `model-retry` is a request the
  * host retried (a 502, say) before the turn went on: a turn that then ends with
  * nothing to say is still silent; one whose retries failed ends with an error row.
+ * `context` is what the host or a plugin added to the model's view, such as the
+ * clock line the policy refreshes every ten minutes; it says nothing to the user.
  */
-const QUIET_KINDS = new Set(['turn-trigger', 'turn-process', 'turn-tail', 'assistant-step', 'model-retry'])
+const QUIET_KINDS = new Set(['turn-trigger', 'turn-process', 'turn-tail', 'assistant-step', 'model-retry', 'context'])
 
 /** Where a step's reply text is drawn; its thinking is drawn elsewhere. */
 const REPLY_BODY = '[data-text-interaction-source]'
 
 /** @returns whether a row says something to the user. */
 function speaks(row: Element): boolean {
-  if (row.hasAttribute('data-turn-process-answer')) return true
+  const bodies = [...row.querySelectorAll(REPLY_BODY)]
+  const reply = bodies.map(body => body.textContent ?? '').join('').trim()
+  // Hosts before 0.2.2 (0.2.1-rc.5) mark the answer row and draw its text without a reply body: it speaks
+  // unless all it says is the silent reply.
+  if (row.hasAttribute('data-turn-process-answer')) return (bodies.length > 0 ? reply : (row.textContent ?? '').trim()) !== SILENT_REPLY
   if (row.getAttribute('data-chat-flow-kind') !== 'assistant-step') return false
-  const text = [...row.querySelectorAll(REPLY_BODY)].map(body => body.textContent ?? '').join('').trim()
-  return text !== '' && text !== SILENT_REPLY
+  return reply !== '' && reply !== SILENT_REPLY
 }
 
 /** How long to wait for a burst of changes to end, in milliseconds. */
@@ -43,7 +48,9 @@ export function markSilentTurns(root: ParentNode): void {
   const turns = new Map<string, Element[]>()
   for (const row of root.querySelectorAll('[data-chat-flow-kind][data-chat-turn]')) {
     const turn = row.getAttribute('data-chat-turn') as string
-    turns.set(turn, [...turns.get(turn) ?? [], row])
+    const rows = turns.get(turn)
+    if (rows === undefined) turns.set(turn, [row])
+    else rows.push(row)
   }
   for (const rows of turns.values()) {
     const kinds = rows.map(row => row.getAttribute('data-chat-flow-kind') as string)

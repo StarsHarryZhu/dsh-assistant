@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { describeEntry, parseDdl, repeatsOn, todayItems, weekView, zonedToUtc } from '../src/host/ddl.ts'
+import { zonedToUtc } from '../src/host/calendar.ts'
+import { describeEntry, parseDdl, repeatsOn, todayItems, weekView } from '../src/host/ddl.ts'
 
 const FILE = `# DDL 与行程
 

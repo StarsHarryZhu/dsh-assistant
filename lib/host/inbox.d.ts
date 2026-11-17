@@ -9,8 +9,6 @@
  */
 /** The inbox folder in a workspace. */
 export declare const INBOX_FOLDER = "IM";
-/** WeChat's folder in the inbox. */
-export declare const WECHAT_FOLDER = "IM/WeChat";
 /** Where chat files landed before the inbox existed (dsh-assistant 0.2.0 development builds). */
 export declare const LEGACY_TEMP_FOLDER = "temp";
 /** @returns WeChat's inbox folder in a workspace. */

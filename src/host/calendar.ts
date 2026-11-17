@@ -1,7 +1,9 @@
 /**
- * The calendar the model reads every assembly, the clock it gets every few
- * minutes, and the `/ddl` week window, all in the user's own time zone (recorded
- * in the profile, never read from a browser). Ported from assistant-mode
+ * Time in the user's own zone (recorded in the profile, never read from a
+ * browser): the zone primitives every host module shares (an instant's local
+ * date and time, a local time's instant, date arithmetic, the `HH:MM` shape),
+ * the calendar the model reads every assembly, the clock it gets every few
+ * minutes, and the `/ddl` week window. Ported from assistant-mode
  * (`my_plugins/dsh-assisstant/lib/index.js`).
  * @module dsh-assisstant/host/calendar
  */
@@ -41,12 +43,75 @@ export function processZone(): string {
   return new Intl.DateTimeFormat().resolvedOptions().timeZone
 }
 
-/** @returns the zone's calendar date at that instant. */
-function localDate(date: Date, zone: string): { year: number; month: number; day: number } {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
-    timeZone: zone, year: 'numeric', month: 'numeric', day: 'numeric',
-  }).formatToParts(date).map(part => [part.type, part.value]))
-  return { year: Number(parts.year), month: Number(parts.month), day: Number(parts.day) }
+/** A 24-hour clock time, `HH:MM`. */
+export const CLOCK_TIME = /^([01]\d|2[0-3]):[0-5]\d$/u
+
+/** One instant in a zone. */
+export interface LocalTime {
+  /** "YYYY-MM-DD". */
+  readonly iso: string
+  /** "MM/DD". */
+  readonly short: string
+  /** "HH:MM", 24-hour. */
+  readonly time: string
+}
+
+/**
+ * One formatter per zone: building one costs several times a format, and the
+ * week view, the heartbeat, and every reminder ask for the same few zones.
+ */
+const formatters = new Map<string, Intl.DateTimeFormat>()
+
+/** @returns the zone's date and time parts at that instant, as numbers in text. */
+function partsAt(ms: number, zone: string): Record<string, string> {
+  let formatter = formatters.get(zone)
+  if (formatter === undefined) {
+    formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    })
+    formatters.set(zone, formatter)
+  }
+  return Object.fromEntries(formatter.formatToParts(new Date(ms)).map(part => [part.type, part.value]))
+}
+
+/** @returns the zone's date and 24-hour time at that instant. */
+export function local(ms: number, zone: string): LocalTime {
+  const parts = partsAt(ms, zone)
+  return { iso: `${parts.year}-${parts.month}-${parts.day}`, short: `${parts.month}/${parts.day}`, time: `${parts.hour}:${parts.minute}` }
+}
+
+/** @returns the zone's offset from UTC at that instant, in milliseconds. */
+function offsetMs(ms: number, zone: string): number {
+  const parts = partsAt(ms, zone)
+  const wall = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute))
+  return wall - Math.floor(ms / 60_000) * 60_000
+}
+
+/**
+ * The instant of a local date and time. A time a clock change repeats reads as
+ * the earlier one; a time it skips moves forward by the gap.
+ * @param date - "YYYY-MM-DD".
+ * @param time - "HH:MM".
+ * @param zone - an IANA zone.
+ * @returns epoch milliseconds.
+ */
+export function zonedToUtc(date: string, time: string, zone: string): number {
+  const [year, month, day] = date.split('-').map(Number) as [number, number, number]
+  const [hour, minute] = time.split(':').map(Number) as [number, number]
+  const wall = Date.UTC(year, month - 1, day, hour, minute)
+  const before = wall - offsetMs(wall - 86_400_000, zone)
+  const after = wall - offsetMs(wall + 86_400_000, zone)
+  const valid = [before, after].filter((candidate) => {
+    const seen = local(candidate, zone)
+    return seen.iso === date && seen.time === time
+  })
+  return valid.length === 0 ? before : Math.min(...valid)
+}
+
+/** @returns the calendar date that many days away from "YYYY-MM-DD". */
+export function addDays(date: string, days: number): string {
+  const [year, month, day] = date.split('-').map(Number) as [number, number, number]
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10)
 }
 
 /** @returns the zone's UTC offset at that instant, as "UTC-04:00". */
@@ -65,16 +130,10 @@ function offsetAt(date: Date, zone: string): string {
  * @returns today and the following days.
  */
 export function localDays(now: Date, zone: string, count: number): LocalDay[] {
-  const today = localDate(now, zone)
-  const pad = (n: number): string => String(n).padStart(2, '0')
+  const today = local(now.getTime(), zone).iso
   return Array.from({ length: count + 1 }, (_, index) => {
-    const noon = new Date(Date.UTC(today.year, today.month - 1, today.day + index, 12))
-    return {
-      iso: `${noon.getUTCFullYear()}-${pad(noon.getUTCMonth() + 1)}-${pad(noon.getUTCDate())}`,
-      short: `${pad(noon.getUTCMonth() + 1)}/${pad(noon.getUTCDate())}`,
-      weekday: WEEKDAYS[noon.getUTCDay()] as string,
-      offset: offsetAt(noon, zone),
-    }
+    const iso = addDays(today, index)
+    return { iso, short: `${iso.slice(5, 7)}/${iso.slice(8, 10)}`, weekday: weekdayOf(iso), offset: offsetAt(new Date(`${iso}T12:00Z`), zone) }
   })
 }
 
@@ -86,17 +145,20 @@ export function localDays(now: Date, zone: string, count: number): LocalDay[] {
  * @returns one line.
  */
 export function clockText(now: Date, zone: string): string {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
-    timeZone: zone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-  }).formatToParts(now).map(part => [part.type, part.value]))
-  const today = localDays(now, zone, 0)[0] as LocalDay
-  return `Current time: ${today.iso} ${today.weekday} ${parts.hour}:${parts.minute} (${zone}, ${offsetAt(now, zone)}).`
+  const { iso, time } = local(now.getTime(), zone)
+  return `Current time: ${iso} ${weekdayOf(iso)} ${time} (${zone}, ${offsetAt(now, zone)}).`
 }
 
 /** @returns the Chinese weekday of a calendar date, "YYYY-MM-DD". */
 export function weekdayOf(iso: string): string {
   const [year, month, day] = iso.split('-').map(Number) as [number, number, number]
   return WEEKDAYS[new Date(Date.UTC(year, month - 1, day)).getUTCDay()] as string
+}
+
+/** @returns an instant in the zone as "11/05 周四 14:30". */
+export function whenText(ms: number, zone: string): string {
+  const at = local(ms, zone)
+  return `${at.short} ${weekdayOf(at.iso)} ${at.time}`
 }
 
 /** @returns the /ddl window, as "10/26 周一 – 11/01 周日". */

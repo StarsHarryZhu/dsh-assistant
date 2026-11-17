@@ -2,18 +2,20 @@
 
 ## 1. Role
 
-The identities, defaults, and data shapes both halves of the plugin read from the settings row: the package, preset, and panel ids, the defaults of the shared settings and of each assistant's own, the workers' models, and the assistant list (one entry per assistant: its name, the optional form of address for its user, its folder, conversation, and what it changed from the defaults), WeChat request, and WeChat state shapes with defensive readers. The settings row is the channel between the assistant page and the host, so every reader accepts any stored value and keeps only well-formed entries.
+The identities, defaults, and data shapes both halves of the plugin read from the settings row: the package, preset, and panel ids, the defaults of the shared settings and of each assistant's own, the workers' models, and the assistant list (one entry per assistant: its name, the optional form of address for its user, its folder, conversation, and what it changed from the defaults), WeChat request and WeChat state shapes with defensive readers; and DeepSeek's peak hours, which the host and the Plugins screen both read. The settings row is the channel between the assistant page and the host, so every reader accepts any stored value and keeps only well-formed entries.
 
 ## 2. Constraints
 
 - No runtime dependency and no environment-specific API: the module compiles into both the host emit and the browser bundle.
 - Readers never throw on malformed input.
+- Peak hours are Beijing time, Monday to Friday, and computed at UTC+8 (Beijing keeps no daylight saving time); Chinese public holidays are not tracked.
 
 ## 3. Contents
 
 - `settings.ts` — ids, defaults, data shapes, readers, and the folder-name rule.
 - `record-tools.ts` — the names of the assistant conversation's own tools and the plain titles of their calls.
 - `silent.ts` — the reply a turn with nothing to say gives, which the browser half hides.
+- `peak.ts` — DeepSeek's peak hours: the default, reading and writing the setting, the stretch an instant falls in, the next off-peak instant, and the coming stretches.
 
 ## 4. Progress
 
@@ -21,5 +23,8 @@ The identities, defaults, and data shapes both halves of the plugin read from th
 - Done (2026-11-01): ids, defaults, shapes, readers; request actions with options, and the connection, options, and diagnosis in WeChat states.
 - Done (2026-11-05, user request): the heartbeat and quiet hours among each assistant's settings, and where the user said they are.
 - Done (2026-11-06, user request): `wechatMediaDays`, how long the WeChat inbox keeps files (0 for good); `im_route` and `media_copy` titles in place of `im_send` and `temp_move`.
+- Done (2026-11-15, user request): the off-peak switch and peak hours among the shared settings, with their reader.
+- Removed (2026-11-16, user request): the mailbox shapes, the mail check interval, the hidden `mail` switch, and the mail tools' titles.
+- Removed (2026-11-17): the unused `INTERNAL_FIELDS`.
 - Open: nothing.
 - Goal later: nothing planned.

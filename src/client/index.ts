@@ -33,7 +33,6 @@ import type {
   RemoteSessionLike,
   SessionsLike,
   SlotsLike,
-  Translate,
   UiWorkspaceLike,
   WorkspacesLike,
 } from './host.ts'

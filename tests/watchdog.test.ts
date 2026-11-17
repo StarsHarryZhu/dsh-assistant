@@ -47,6 +47,24 @@ describe('the watchdog', () => {
     expect(dog.routerOf('w1')).toBe('w1')
   })
 
+  it('forgets a worker when its turn ends, and tracks it again when it is sent more work', () => {
+    const { dog, notes, advance } = setup()
+    dog.observe('r1', 'router', 'r1', 'turn/end')
+    dog.observe('w1', 'worker', 'r1', 'turn/start')
+    dog.observe('w1', 'worker', 'r1', 'turn/end')
+    expect(dog.routerOf('w1')).toBe('w1')
+    // What a finished worker still records (its report going out, say) does not bring it back as running.
+    dog.observe('w1', 'worker', 'r1', 'assistant/message')
+    advance(11 * 60_000)
+    expect(dog.tick()).toEqual([])
+    dog.observe('w1', 'worker', 'r1', 'turn/start')
+    advance(11 * 60_000)
+    expect(dog.tick()).toEqual(['w1'])
+    expect(notes[0]?.to).toBe('r1')
+    // The assistant conversation itself stays known between its turns.
+    expect(dog.routerOf('r1')).toBe('r1')
+  })
+
   it('uses the stall limit of the assistant a session belongs to', () => {
     let now = 0
     const cancelled: string[] = []

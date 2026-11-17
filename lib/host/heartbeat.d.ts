@@ -39,6 +39,8 @@ export interface WakeRequest {
     readonly reason: string;
     /** The user asked for exactly this moment, so quiet hours do not hold it back. */
     readonly throughQuiet: boolean;
+    /** Work that can wait: DeepSeek's peak hours hold it back as well. */
+    readonly offPeak?: boolean;
 }
 /** What the heartbeat needs from the plugin. */
 export interface HeartbeatDeps {
@@ -60,6 +62,8 @@ export interface HeartbeatDeps {
     chatWindow?(person: Person): number | undefined;
     /** Send text straight to the chat app, without the model; throws when it cannot. */
     sendChat?(person: Person, text: string): void;
+    /** Whether DeepSeek's peak hours hold back work that can wait at this instant. */
+    inPeak?(at: number): boolean;
     warn(message: string): void;
     /** The folder of the state files. */
     directory: string;

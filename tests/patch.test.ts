@@ -72,7 +72,7 @@ describe('the bundle patch', () => {
 describe('the manifest', () => {
   it('pins the identity, the engine range, and the entries', () => {
     expect(manifest.name).toBe('@starsharryzhu/dsh-assistant')
-    expect(manifest.version).toBe('0.3.0')
+    expect(manifest.version).toBe('0.3.1')
     expect(manifest.license).toBe('MIT')
     expect(manifest.engines.dsh).toBe('>=0.2.1-rc.5 <0.3.0-0')
     const hostRanges = Object.values({ ...manifest.devDependencies, ...manifest.peerDependencies } as Record<string, string>).filter(range => range.includes('0.2.'))
@@ -86,6 +86,14 @@ describe('the manifest', () => {
   it('pins every sub-plugin to an exact version', () => {
     expect(Object.keys(manifest.dependencies).sort()).toEqual(['@starsharryzhu/complete-subagent', '@starsharryzhu/im-robot'])
     for (const version of Object.values(manifest.dependencies)) expect(version).toMatch(/^\d+\.\d+\.\d+$/u)
+  })
+
+  it('never makes an npm or git install fetch dsh-mails', () => {
+    // Email lives in its own dsh-mails package: no dependency of any kind names it, no row mounts it, and this package has no lockfile or prepare script.
+    expect(readFileSync(join(ROOT, 'package.json'), 'utf8')).not.toContain('dsh-mails')
+    expect((manifest as { scripts?: Record<string, string> }).scripts?.prepare).toBeUndefined()
+    expect(patch).not.toMatch(/^\s*(-\s*)?name: '@starsharryzhu\/dsh-mails'/mu)
+    expect(patch).not.toContain('dsh-assisstant-mails')
   })
 
   it('keeps the internal ids stable while the package name carries the scope', () => {

@@ -4,7 +4,8 @@
  * @module dsh-assisstant/host/records/recall
  */
 
-import { describeEntry, local, parseDdl, repeatsOn } from '../ddl.ts'
+import { addDays, local } from '../calendar.ts'
+import { describeEntry, parseDdl, repeatsOn } from '../ddl.ts'
 import type { DdlEntry } from '../ddl.ts'
 import { CALENDAR_FILE } from './calendar.ts'
 import { LISTS_FOLDER, readList } from './lists.ts'
@@ -49,9 +50,8 @@ function keywordTest(query: string | undefined): (line: string) => boolean {
 
 /** @returns whether a repeating item falls within the range. */
 function repeatsWithin(entry: DdlEntry, from: string, to: string): boolean {
-  const start = Date.parse(`${from}T00:00Z`)
   for (let day = 0; day < MAX_RANGE_DAYS; day += 1) {
-    const iso = new Date(start + day * 86_400_000).toISOString().slice(0, 10)
+    const iso = addDays(from, day)
     if (iso > to) return false
     if (entry.repeat !== undefined && repeatsOn(entry.repeat.rule, iso)) return true
   }

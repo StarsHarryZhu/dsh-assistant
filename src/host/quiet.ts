@@ -10,7 +10,7 @@
  * @module dsh-assisstant/host/quiet
  */
 
-import { zonedToUtc, local } from './ddl.ts'
+import { CLOCK_TIME, addDays, local, zonedToUtc } from './calendar.ts'
 
 /** What this module reads from an assistant's settings. */
 export interface QuietSettings {
@@ -28,19 +28,11 @@ export interface Span {
   readonly end: number
 }
 
-const TIME = /^([01]\d|2[0-3]):[0-5]\d$/u
-
 /** How many times two kinds of quiet hours can chain into each other. */
 const MAX_CHAIN = 4
 
 /** One minute. */
 const MINUTE_MS = 60_000
-
-/** @returns the date that many days away. */
-function addDays(date: string, days: number): string {
-  const [year, month, day] = date.split('-').map(Number) as [number, number, number]
-  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10)
-}
 
 /**
  * @param settings - the assistant's quiet hours.
@@ -50,7 +42,7 @@ function addDays(date: string, days: number): string {
  */
 export function dailySpan(settings: QuietSettings, at: number, zone: string): Span | undefined {
   const { quietStart: start, quietEnd: end } = settings
-  if (!TIME.test(start) || !TIME.test(end) || start === end) return undefined
+  if (!CLOCK_TIME.test(start) || !CLOCK_TIME.test(end) || start === end) return undefined
   const today = local(at, zone).iso
   for (const offset of [-1, 0, 1]) {
     const day = addDays(today, offset)
@@ -100,7 +92,7 @@ export function quietSpanAt(settings: QuietSettings, at: number, zone: string): 
  */
 export function inDailyQuiet(settings: QuietSettings, time: string): boolean {
   const { quietStart: start, quietEnd: end } = settings
-  if (!TIME.test(start) || !TIME.test(end) || start === end) return false
+  if (!CLOCK_TIME.test(start) || !CLOCK_TIME.test(end) || start === end) return false
   return start < end ? start <= time && time < end : time >= start || time < end
 }
 

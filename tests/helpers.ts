@@ -140,6 +140,7 @@ export function fakeService(overrides: Partial<SharedSettings> = {}, people: Per
     addWake: () => undefined,
     cancelWakes: () => [],
     updateSettings: async () => undefined,
+    peakWindows: () => undefined,
     setBalance: (state) => { balance = state },
   }
   return service

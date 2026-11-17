@@ -42,12 +42,13 @@ Two hidden agent presets, one visible conversation:
 - Your own time zone in the profile, worked out from where you say you are and from your schedule, never from the device.
 - A balance reminder for the DeepSeek account, with configurable wording.
 - WeChat through `im-robot`: scan to bind, and the assistant introduces itself; then chat from WeChat in the same conversation. The assistant decides for each reply whether it also goes to WeChat, so what you need to see reaches you there wherever you last wrote. Images, files, voice, and video you send are shown in the conversation and saved in the workspace's `IM/WeChat/` for 30 days (adjustable; 0 keeps them); the assistant copies a file out before working on it. Replies are text split into short messages; the assistant can also send pictures, videos, and files from its workspace, which show in WeChat as pictures, videos (MP4 and MOV), or files to open.
+- DeepSeek off-peak hours: work that can wait — tidying files and notes, going through old material, research with no deadline — waits until DeepSeek's peak hours are over (Monday to Friday, 09:00–12:00 and 14:00–18:00 Beijing time, when the API costs twice as much), and the assistant tells you when it will be done. Anything you are waiting for or asked for now, reminders, and replies never wait.
 - Tool isolation in both directions.
 
 ## Settings
 
-- **Plugins page** (shared by every assistant): worker models, compaction ratio, balance threshold and check interval, reminder wording, persona and profile limits.
-- **Each assistant's Settings tab**: name and form of address, reminder lead time, daily brief time, heartbeat interval and idle wake, quiet hours, watchdog timeout, WeChat switch and message length. Its **Shared settings** button opens the Plugins page settings.
+- **Plugins page** (shared by every assistant): worker models, compaction ratio, balance threshold and check interval, reminder wording, persona and profile limits, whether work that can wait goes in DeepSeek's off-peak hours, and the peak hours themselves (Beijing time, Monday to Friday; empty for none).
+- **Each assistant's Settings tab**: name and form of address, permission (also in the IM tab), reminder lead time, daily brief time, heartbeat interval and idle wake, quiet hours, watchdog timeout, WeChat switch and message length. Its **Shared settings** button opens the Plugins page settings.
 
 Numbers can be cleared and retyped; values are corrected when the field is left.
 
@@ -62,7 +63,7 @@ Installing either one standalone switches the bundled copy off automatically.
 
 ## Status and roadmap
 
-Working today: the parent/worker split, per-worker model and reasoning effort, workspace confinement with parent-approved access, automatic compaction, records, schedule and reminders, heartbeats and quiet hours, WeChat in and out, and the watchdog.
+Working today: the parent/worker split, per-worker model and reasoning effort, workspace confinement with parent-approved access, automatic compaction, records, schedule and reminders, heartbeats and quiet hours, WeChat in and out, off-peak work, and the watchdog.
 
 Next: single-window self-management for the parent agent — its own context, model choice, and long-running work handled in the same conversation, with fewer handoffs and less supervision.
 
@@ -74,8 +75,10 @@ Next: single-window self-management for the parent agent — its own context, mo
 - The app keeps its own copy of every image and file shown in a conversation, even after `IM/WeChat/` has removed the original.
 - Only tools are isolated; global prompt contexts injected by other plugins are not filtered.
 - The assistant cannot send voice messages; an audio file goes as a file. Only files inside the assistant's workspace can be sent, up to 100 MB each. Voice you send stays as raw SILK audio, with WeChat's transcript as its text.
+- Chinese public holidays are not tracked: on one, work that can wait still waits for the usual peak hours to end. If your workers run a model that is not DeepSeek's, turn the off-peak switch off.
+- Choosing a model in an assistant's conversation also makes it the default for new conversations, as in any conversation.
 - Workers cannot modify anything outside their workspace; on DSH 0.2.1-rc.5 an approved path only reaches the write/edit tools, not shell commands.
-- Verified on macOS with Desktop 0.2.1-rc.5 and 0.2.2-rc.1; other systems are untested.
+- Verified on macOS with Desktop 0.2.1-rc.5 and 0.2.2-rc.1; delegating to a worker, its write limits, and write-access requests also with a mock model on the 0.2.1-rc.5, 0.2.2-rc.1, 0.2.2-rc.2, and 0.2.2-rc.3 hosts (off-peak hours only with a mock model, on 0.2.1-rc.5 and 0.2.2-rc.3); other systems are untested.
 
 ## Development
 

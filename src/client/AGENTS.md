@@ -6,9 +6,10 @@ The browser half, bundled by `build.js` into one module-loader factory. It regis
 
 ## 2. Constraints
 
-- Every class has the `dsa-` prefix. Rules on host markup: the title beside the header menu is hidden (`nav:has(+ * .dsa-switcher)`, so a split pane's other session keeps its title), and under the root attribute `data-dsh-assisstant-session` they hide `[data-slot='conversation.input.permission']` (workspace-write with automatic refusal matches no host preset and reads "Custom"), and show the plugin's Chinese name in place of the hidden preset's id in the header label; the IM tab is where the permission is picked. The host re-pins the permissions anyway; the model and effort are the composer's.
+- Every class has the `dsa-` prefix. Rules on host markup: the title beside the header menu is hidden (`nav:has(+ * .dsa-switcher)`, so a split pane's other session keeps its title), and under the root attribute `data-dsh-assisstant-session` they hide `[data-slot='conversation.input.permission']` (workspace-write with automatic refusal matches no host preset and reads "Custom"), and show the plugin's Chinese name in place of the hidden preset's id in the header label; the IM tab and the settings tab are where the permission is picked, one value shown in both. The host re-pins the permissions anyway; the model and effort are the composer's.
 - Every settings page looks alike, after the user's `dsh-btw` page: a label above each control in one column at most 360px wide, plain group headings, an outlined save button.
-- The Plugins screen holds what every assistant shares (worker models, compaction, balance reminder, persona and profile limits); the settings tab holds what each assistant has for itself (name, form of address, schedule, heartbeat, quiet hours, watchdog, WeChat). The user drew that line.
+- The Plugins screen holds what every assistant shares (worker models, compaction, balance reminder, persona and profile limits, DeepSeek's peak hours and whether work waits for off-peak hours); the settings tab holds what each assistant has for itself (name, form of address, permission, schedule, heartbeat, quiet hours, watchdog, WeChat). The user drew that line. The permission saves at once on its own, so the settings tab's draft never carries it.
+- The sidebar page asks the host to open the conversation again a few times while it stays up: the host may still be switching to its panel when the page first draws, and then shows the panel over the conversation.
 - An assistant cannot be created without a workspace folder, and not in another assistant's folder. There is no default location. Where the user is, in their own words, is optional; the assistant works out the time zone from it.
 - Assistant conversations are left out of the host's session lists by answering `ctx.sessions.list` and `ctx.workspaces.list` with those ids removed and `byId` whole, so the conversation still opens and its workers panel stays. Not by setting `origin: 'subagent'` on a row: the conversation's own view reads it. The sidebar's content search can still find them.
 - In an assistant conversation, `[data-chat-flow-kind='turn-trigger']` rows are hidden, and so is every row of a turn a host note started that ended with nothing said or done: heartbeats would otherwise draw two rows each. Anything else in such a turn, an error included, keeps it in view.
@@ -28,12 +29,12 @@ The browser half, bundled by `build.js` into one module-loader factory. It regis
 - `page.tsx` — the page behind the sidebar row: opens the assistant last shown here, or the create form (name, what it calls you, required workspace), or lists assistants whose conversation is not ready.
 - `switcher.tsx` — the assistant's name in the conversation header, as the menu that switches assistants or creates one.
 - `menu.tsx` — the dropdown both menus use.
-- `im.tsx` — the IM tab: QR binding, then the account, the conversation's model and effort, the assistant's permission, send mode, commands, the fixed settings disabled, diagnosis, reconnect, removal.
+- `im.tsx` — the IM tab: QR binding, then the account, the conversation's model and effort, the assistant's permission (also used by the settings tab), send mode, commands, the fixed settings disabled, diagnosis, reconnect, removal.
 - `record-row.tsx` — the plain title a record tool's call shows in the conversation.
 - `hidden-sessions.ts` — leaves assistant conversations out of the host's session lists.
-- `silent-turns.ts` — marks the host-note turns that said nothing (only thinking, or the silent reply) and did nothing, retried model requests included, for the stylesheet to hide.
+- `silent-turns.ts` — marks the host-note turns that said nothing (only thinking, or the silent reply) and did nothing, retried model requests and context rows such as the clock included, for the stylesheet to hide.
 - `assistants.ts` — assistant list and WeChat request helpers over the settings form, and the assistant last shown in this browser.
-- `settings.tsx` — both settings pages: the shared one with the workers' models, and each assistant's own, which also renames and deletes it.
+- `settings.tsx` — both settings pages: the shared one with the workers' models and the off-peak settings, and each assistant's own, which also renames, sets the permission, and deletes it.
 - `qr.tsx` — draws a QR code as SVG.
 - `locales.ts` — copy, Chinese first.
 - `styles.css` — the stylesheet, inlined by the build.
@@ -52,4 +53,10 @@ The browser half, bundled by `build.js` into one module-loader factory. It regis
 - Done (2026-11-06, user request): the settings tab sets how many days the WeChat inbox keeps files.
 - Fixed (2026-11-06, found on Desktop 0.2.2-rc.1): every heartbeat turn was hidden, reminders included, because 0.2.2 marks no reply as the turn's answer; a turn now stays in view when a step's Markdown body says anything but the silent reply.
 - Fixed (2026-11-09, found on Desktop 0.2.2-rc.1): a heartbeat whose model request the host retried (five 502s, seven minutes) stayed in view with its `[silent]`, because its `model-retry` row counted as saying something; that row is now quiet. The oldest turn on screen, whose trigger row is above the loaded page, is judged by the absence of a person's message instead of by its trigger. The watch also follows text-only changes, so a streamed reply's last piece re-marks its turn.
+- Fixed (2026-11-16, found in the 0.2.2-rc.3 test host): a router turn answering a worker's report with `[silent]` stayed in view when the policy's clock line was drawn in it as a `context` row; that row is now quiet.
+- Done (2026-11-15, user request): the settings tab also picks the permission; the Plugins screen sets DeepSeek's peak hours, corrected when the field is left, and whether work that can wait waits for off-peak hours.
+- Open (2026-11-15): the sidebar row's first click once did nothing on Desktop; the page now asks again while it stays up. One click opened the conversation on the packaged 0.2.2-rc.3 host (2026-11-16, from the new-session page and the Plugins page); the real Desktop app has not been tried.
+- Fixed (2026-11-16, found on a 0.2.1-rc.5 test host when the floor went back down): a host-note turn answering `[silent]` stayed in view there, because rc.5 marks the answer row with `data-turn-process-answer` and draws its text without a reply body; such a row now speaks only when it says more than the silent reply.
 - Known limits: other plugins' changes to the conversation view also apply to assistant conversations; the sidebar's content search can still find assistant conversations.
+- Removed (2026-11-16, user request): the Mail tab (`mail.tsx`, `mail-icons.tsx`) and its copy and styles, after a short pause behind a hidden switch; the IM and settings tabs are 11 and 12 again.
+- Done (2026-11-17): the unused `wechat.badge` copy and an unused import are gone, and the silent-turn pass groups rows without copying a turn's list for each row.

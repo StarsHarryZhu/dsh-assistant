@@ -28,7 +28,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 import type { AssistantService } from './host/service.ts';
 import type { Person, SandboxMode } from './shared/settings.ts';
-import type { AssemblyLike, PresentationLike } from './host/types.ts';
+import type { PresentationLike } from './host/types.ts';
 export declare const name = "dsh-assisstant-policy";
 export declare const inject: string[];
 /** Which preset this instance serves. */
@@ -65,5 +65,3 @@ export declare function heartbeatContext(service: AssistantService, person: Pers
  * @param config - this row's role.
  */
 export declare function apply(ctx: Context, config: Config): void;
-/** Kept for tests that assemble a prompt without an agent. */
-export type { AssemblyLike };
